@@ -382,7 +382,9 @@ export default function Home() {
       setLink("");
     } else {
       setFormError(
-        "Could not save. Check cookie storage, export a backup or shorten image URLs.",
+        user
+          ? "Could not save. Check account storage, export a backup or shorten image URLs."
+          : "Could not save. Check cookie storage, export a backup or shorten image URLs.",
       );
     }
   }
@@ -1294,8 +1296,11 @@ export default function Home() {
           <DialogHeader>
             <DialogTitle>Delete cart?</DialogTitle>
             <DialogDescription>
-              The cart “{cart.name}” and its products will be removed from your
-              cookies. Export a backup first if needed.
+              The cart “{cart.name}” and its products will be removed from{" "}
+              {user
+                ? "your account. Its share links will also be revoked."
+                : "this browser."}{" "}
+              Export a backup first if needed.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
