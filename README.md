@@ -48,4 +48,3 @@ Cookies sind browser- und gerätegebunden. Löschen der Cookies oder privates Br
 ## Prüfung
 
 `npm test` prüft Preisformatierung, Shop-Erkennung, Importvalidierung, Cookie-Rundlauf und Speicherlimit sowie JSON-LD-/Open-Graph-Extraktion, fehlende Preise, Fremdwährungen und blockierte Produktseiten. Browserprüfung umfasst manuelles Anlegen, Mengen, Neuladen mit Cookie-Wiederherstellung, Suche, Ansichten und mobiles Layout mit reduzierter Bewegung.
-
