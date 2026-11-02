@@ -1,29 +1,28 @@
 # Just a Shopping Cart
 
-Alle Shops. Ein Warenkorb. Eine deutschsprachige Wunschlisten-App mit Next.js, TypeScript, offiziellen shadcn/ui-Komponenten (Base UI, Nova) und GSAP.
+A small tool for collecting product links from different shops and calculating a shared total. Built with Next.js, official shadcn/ui components (Base UI, Nova) and GSAP. The interface uses English text and a neutral black theme.
 
-## Funktionen
+## Features
 
-- Mehrere Warenkörbe erstellen, umbenennen, wechseln und löschen
-- Produktlinks, Namen, Bilder, Einzelpreise und Mengen speichern und bearbeiten
-- Gesamtsumme in Euro mit ganzzahliger Cent-Rechnung
-- Vorlagen für Amazon.de/.com, Kleinanzeigen, eBay.de, OTTO und IKEA
-- Automatischer Import von JSON-LD- und Open-Graph-Produktdaten
-- Eigene Links mit manuellen Angaben, auch nach einem fehlgeschlagenen Import
-- Suche, Shop-Filter, Sortierung, Raster- und Listenansicht
-- Speicherung in Cookies, Export und Import von JSON-Sicherungen
-- Responsive Oberfläche und Berücksichtigung reduzierter Bewegung
+- Create, rename, switch and delete multiple carts
+- Save and edit product URLs, names, image URLs, unit prices and quantities
+- Calculate EUR totals using integer cents
+- Import JSON-LD and Open Graph details from Amazon.de/.com, Kleinanzeigen, eBay.de, OTTO and IKEA when shops allow access
+- Add any other product URL manually
+- Search, shop filters, sorting, grid and list views
+- Browser cookie storage with JSON backup export and import
+- Responsive UI and reduced-motion support
 
-## Lokal starten
+## Local development
 
-Node.js 22.13 oder neuer verwenden.
+Use Node.js 22.13 or later.
 
 ```sh
 npm ci
 npm run dev
 ```
 
-Im Browser http://localhost:3000 öffnen.
+Open http://localhost:3000.
 
 ```sh
 npm test
@@ -31,28 +30,38 @@ npm run build
 npm start
 ```
 
-Für den Betrieb wird ein Node.js-Server benötigt, z. B. ein Next.js-kompatibler Hoster. Ein reiner GitHub-Pages-Export unterstützt den serverseitigen Produktimport nicht. Es sind keine API-Schlüssel oder Datenbank nötig.
+The canonical local project directory is `C:\Users\nikos\Documents\JustAShoppingCart`.
 
-## Grenzen des Imports
+## X1 deployment
 
-Der Server ruft ausschließlich HTTPS-Seiten der unterstützten Shop-Domains ab und prüft jede Weiterleitung erneut. Er begrenzt Zeit, Weiterleitungen und Antwortgröße. Er führt kein JavaScript der Shops aus und umgeht keine Captchas, Logins oder Zugriffssperren. Shop-Daten und Verfügbarkeit können sich ändern; ein erfolgreicher Import kann nicht für jeden Link garantiert werden. Kurzlinks wie amzn.to bitte zuerst im Browser öffnen und den direkten Produktlink verwenden.
+The server version includes automatic product import; no database or API key is needed. Docker runs the app as an unprivileged user and restarts it after a reboot.
 
-Wenn ein Shop keine Daten liefert, bleiben alle Felder manuell ausfüllbar. Fehlende oder nicht in EUR angegebene Preise werden nicht als null Euro übernommen. Preise sind Momentaufnahmen; Versand, Gutscheine und spätere Änderungen sind nicht enthalten.
+On X1, with Docker and the Compose plugin installed:
 
-## Cookies und Datenschutz
+```sh
+git clone https://github.com/niceguyyk/justashoppingcart.git ~/JustAShoppingCart
+cd ~/JustAShoppingCart
+docker compose -p justashoppingcart up --build -d --wait
+```
 
-Warenkörbe werden bis zu einem Jahr in drei Cookies mit jeweils maximal 3.000 Zeichen gespeichert (insgesamt 9.000 URL-kodierte Zeichen). Die Anzahl speicherbarer Produkte hängt von der Länge der Links und Namen ab. Eine zu große Änderung wird vor dem Schreiben abgelehnt. Die App bietet maximal 12 Warenkörbe und 100 Produkte je Warenkorb, innerhalb des Cookie-Limits.
+Open `http://<X1-address>:3030`. Use `SHOPPING_CART_PORT` to choose a different free port. The app health endpoint is `/api/health`. Check logs with `docker compose -p justashoppingcart logs --tail 100 app`.
 
-Cookies sind browser- und gerätegebunden. Löschen der Cookies oder privates Browsen kann Daten entfernen. Regelmäßig über Export sichern; Import fügt die Sicherung als neue Warenkörbe hinzu. Produktbilder werden vom jeweiligen Bildanbieter geladen. Beim automatischen Import erhält der Server den eingegebenen Produktlink und fragt den Shop ab. Keine Konten, keine Analyse-Tracker und keine serverseitige Warenkorb-Datenbank.
+For a pinned release, run `sh deploy/x1.sh <full-commit-sha>` on X1. It refuses to overwrite local changes. To roll back, run the script with a previous commit that includes this Docker deployment setup. A reachable, authorized SSH login is required to deploy remotely.
 
-## Prüfung
+## GitHub Pages
 
-`npm test` prüft Preisformatierung, Shop-Erkennung, Importvalidierung, Cookie-Rundlauf und Speicherlimit sowie JSON-LD-/Open-Graph-Extraktion, fehlende Preise, Fremdwährungen und blockierte Produktseiten. Browserprüfung umfasst manuelles Anlegen, Mengen, Neuladen mit Cookie-Wiederherstellung, Suche, Ansichten und mobiles Layout mit reduzierter Bewegung.
+`npm run build:pages` exports the static version to `out`, with the base path `/justashoppingcart`. `.github/workflows/pages.yml` publishes it on pushes to `main`.
 
-## Veröffentlichung auf GitHub Pages
+GitHub Pages cannot run server-side import. In that version, product details are entered manually. Cookie storage, totals, export and import work in both versions. The normal server build keeps `/api/product` enabled.
 
-Die statische Version wird mit `npm run build:pages` erzeugt. Der Ordner `out` enthält die Website für https://niceguyyk.github.io/justashoppingcart/.
+## Storage and import limits
 
-Der Workflow `.github/workflows/pages.yml` baut, testet und veröffentlicht bei Änderungen auf `main`. Einmalig im Repository unter **Settings → Pages → Build and deployment → Source → GitHub Actions** aktivieren. Falls der erste Deploy vor dieser Aktivierung fehlschlägt, den Workflow danach erneut ausführen.
+Carts are stored for up to a year in three browser cookies, with a total limit of 9,000 URL-encoded characters. Actual capacity depends on the length of product and image URLs. Oversized updates are rejected before writing. The app allows up to 12 carts and 100 products per cart within the cookie limit.
 
-GitHub Pages führt keinen Servercode aus. Deshalb sind in dieser Version Shop-Erkennung und manuelle Produktangaben verfügbar; automatisches Auslesen ist klar als nicht verfügbar gekennzeichnet. Der normale `npm run build` behält die vollständige Server-Version mit `/api/product` bei. Cookies, Mengen, Gesamtsumme sowie Export und Import funktionieren in beiden Versionen.
+Clearing cookies removes carts. There is no device sync; export backups regularly. Images load from their providers. Automatic import sends the submitted product URL to the app server and the shop.
+
+The importer only accesses HTTPS URLs on supported shop domains, checks each redirect, and bounds response size and time. It does not execute shop JavaScript, bypass captchas or log in to shops. Missing or non-EUR prices remain unknown. Prices are snapshots, excluding additional shipping, discounts and future changes.
+
+## Verification
+
+`npm test` covers integer-cent formatting, shop URL checks, imported-data validation, cookie round-trips and capacity, structured product metadata, missing prices, non-EUR prices and blocked pages. Check the main cart flows at desktop and mobile widths with reduced motion before deployment.

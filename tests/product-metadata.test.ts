@@ -34,7 +34,7 @@ test("missing or non-EUR prices remain unknown, never zero", () => {
 test("blocked shop responses and unsafe images are handled", () => {
   assert.throws(
     () => parseProduct("<title>Robot Check</title>", "https://amazon.de"),
-    /blockiert/,
+    /blocking/,
   );
   assert.equal(
     parseProduct(

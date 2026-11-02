@@ -50,3 +50,5 @@ next-env.d.ts
 /public/next.svg
 /public/vercel.svg
 /public/window.svg
+
+/work/

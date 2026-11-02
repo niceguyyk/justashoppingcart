@@ -68,7 +68,7 @@ export function parseProduct(html: string, url: string) {
     /captcha|robot check|access denied|zugriff verweigert/i.test(name)
   )
     throw new Error(
-      "Der Shop blockiert den Abruf. Du kannst alle Angaben selbst eintragen.",
+      "The shop is blocking access. You can enter all details manually.",
     );
   let imageUrl = "";
   try {

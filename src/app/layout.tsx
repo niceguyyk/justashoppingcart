@@ -13,15 +13,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Just a Shopping Cart – Alle Shops. Ein Warenkorb.",
+  title: "Just a Shopping Cart",
   description:
-    "Sammle Produktlinks aus Amazon, Kleinanzeigen und deinen Lieblingsshops. Plane deine Einkäufe mit einer gemeinsamen Wunschliste und Gesamtsumme.",
+    "Save product URLs from multiple shops, edit prices and quantities, and calculate your cart total.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
-      lang="de"
+      lang="en"
       className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>

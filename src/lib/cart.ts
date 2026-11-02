@@ -10,16 +10,16 @@ export type Product = {
 export type Cart = { id: string; name: string; products: Product[] };
 export type Store = { carts: Cart[]; active: string };
 export const shops = [
-  "Automatisch",
+  "Auto-detect",
   "Amazon",
   "Kleinanzeigen",
   "eBay",
   "OTTO",
   "IKEA",
-  "Eigener Link",
+  "Custom link",
 ];
 export const money = (cents: number) =>
-  new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(
+  new Intl.NumberFormat("en-IE", { style: "currency", currency: "EUR" }).format(
     cents / 100,
   );
 export function safeUrl(value: string) {
@@ -47,15 +47,31 @@ export function shopFor(value: string) {
             ? "OTTO"
             : /(^|\.)ikea.com$/.test(h)
               ? "IKEA"
-              : "Eigener Link";
+              : "Custom link";
   } catch {
-    return "Eigener Link";
+    return "Custom link";
   }
 }
 export function emptyStore(): Store {
   return {
-    carts: [{ id: "mein-warenkorb", name: "Mein Warenkorb", products: [] }],
+    carts: [{ id: "mein-warenkorb", name: "My cart", products: [] }],
     active: "mein-warenkorb",
+  };
+}
+export function normalizeStore(s: Store): Store {
+  return {
+    ...s,
+    carts: s.carts.map((c) => ({
+      ...c,
+      name:
+        c.id === "mein-warenkorb" && c.name === "Mein Warenkorb"
+          ? "My cart"
+          : c.name,
+      products: c.products.map((p) => ({
+        ...p,
+        shop: p.shop === "Eigener Link" ? "Custom link" : p.shop,
+      })),
+    })),
   };
 }
 export function validStore(value: unknown): value is Store {
@@ -117,7 +133,7 @@ export function readStore(): Store {
         ).join(""),
       ),
     );
-    return validStore(s) ? s : emptyStore();
+    return validStore(s) ? normalizeStore(s) : emptyStore();
   } catch {
     return emptyStore();
   }
@@ -125,12 +141,12 @@ export function readStore(): Store {
 export function saveStore(s: Store) {
   if (!validStore(s))
     throw new Error(
-      "Die Warenkorbdaten sind ungültig. Maximal 12 Warenkörbe und 100 Produkte pro Warenkorb sind möglich.",
+      "Invalid cart data. You can have up to 12 carts and 100 products per cart.",
     );
   const encoded = encodeURIComponent(JSON.stringify(s));
   if (encoded.length > 9000)
     throw new Error(
-      "Dein Cookie-Speicher ist voll. Exportiere deinen Warenkorb und entferne ältere Produkte oder kürze lange Bildlinks.",
+      "Cookie storage is full. Export a backup, then remove older products or shorten image URLs.",
     );
   const flags =
     "; Path=/; Max-Age=31536000; SameSite=Lax" +
@@ -141,6 +157,6 @@ export function saveStore(s: Store) {
   document.cookie = `jasc_count=${count}${flags}`;
   if (JSON.stringify(readStore()) !== JSON.stringify(s))
     throw new Error(
-      "Cookies konnten nicht gespeichert werden. Bitte erlaube Cookies für diese Website.",
+      "Could not save cookies. Please allow cookies for this website.",
     );
 }

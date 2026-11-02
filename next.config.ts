@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
         pageExtensions: ["tsx"],
         images: { unoptimized: true },
       }
-    : {}),
+    : { output: "standalone" }),
   env: {
     NEXT_PUBLIC_STATIC_HOST: githubPages ? "true" : "false",
     NEXT_PUBLIC_BASE_PATH: githubPages ? "/justashoppingcart" : "",

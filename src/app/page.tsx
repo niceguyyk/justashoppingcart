@@ -77,6 +77,7 @@ import {
   shops,
   money,
   validStore,
+  normalizeStore,
 } from "@/lib/cart";
 gsap.registerPlugin(useGSAP);
 const staticHost = process.env.NEXT_PUBLIC_STATIC_HOST === "true";
@@ -87,7 +88,7 @@ const blank = {
   image: "",
   price: "",
   quantity: "1",
-  shop: "Automatisch",
+  shop: "Auto-detect",
 };
 function ProductImage({ src, name }: { src: string; name: string }) {
   const [failed, setFailed] = useState(false);
@@ -102,7 +103,7 @@ function ProductImage({ src, name }: { src: string; name: string }) {
   ) : (
     <div className="image-placeholder">
       <ShoppingBag aria-hidden="true" />
-      <span>Dein nächster Fund</span>
+      <span>No image</span>
     </div>
   );
 }
@@ -120,7 +121,7 @@ function ShopMark({ shop }: { shop: string }) {
         "a"
       ) : shop === "Kleinanzeigen" ? (
         "k"
-      ) : shop === "Eigener Link" ? (
+      ) : shop === "Custom link" ? (
         <Link2 />
       ) : (
         shop.slice(0, 1)
@@ -137,11 +138,11 @@ export default function Home() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState("Alle Shops");
+  const [filter, setFilter] = useState("All shops");
   const [sort, setSort] = useState("newest");
   const [view, setView] = useState("grid");
   const [link, setLink] = useState("");
-  const [preset, setPreset] = useState("Automatisch");
+  const [preset, setPreset] = useState("Auto-detect");
   const [editor, setEditor] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [form, setForm] = useState(blank);
@@ -165,7 +166,7 @@ export default function Home() {
     .filter(
       (p) =>
         p.name.toLowerCase().includes(query.toLowerCase()) &&
-        (filter === "Alle Shops" || p.shop === filter),
+        (filter === "All shops" || p.shop === filter),
     )
     .sort((a, b) =>
       sort === "price-asc"
@@ -173,7 +174,7 @@ export default function Home() {
         : sort === "price-desc"
           ? b.price - a.price
           : sort === "name"
-            ? a.name.localeCompare(b.name, "de")
+            ? a.name.localeCompare(b.name, "en")
             : 0,
     );
   useGSAP(
@@ -262,30 +263,30 @@ export default function Home() {
   }
   async function lookup(url: string, shop: string) {
     if (!safeUrl(url)) {
-      setFormError("Bitte gib einen vollständigen http- oder https-Link ein.");
+      setFormError("Enter a complete http or https URL.");
       return;
     }
     if (
-      shop !== "Automatisch" &&
-      shop !== "Eigener Link" &&
+      shop !== "Auto-detect" &&
+      shop !== "Custom link" &&
       shopFor(url) !== shop
     ) {
       setFormError(
-        "Dieser Link passt nicht zum gewählten Shop. Wähle den passenden Shop oder Automatisch.",
+        "This URL does not match the selected shop. Choose the matching shop or Auto-detect.",
       );
       return;
     }
-    if (shop === "Eigener Link") {
-      setFormHint("Trage Name, Preis und optional einen Bildlink ein.");
+    if (shop === "Custom link") {
+      setFormHint("Enter a name, price and optional image URL.");
       return;
     }
     if (staticHost) {
       setForm((f) => ({
         ...f,
-        shop: shop === "Automatisch" ? shopFor(url) : shop,
+        shop: shop === "Auto-detect" ? shopFor(url) : shop,
       }));
       setFormHint(
-        "Shop erkannt. Auf GitHub Pages ergänzt du Name, Bild und Preis manuell; automatisches Auslesen benötigt einen Server.",
+        "Shop detected. Enter the name, image and price manually on GitHub Pages. Automatic import requires the server version.",
       );
       return;
     }
@@ -304,7 +305,7 @@ export default function Home() {
       });
       const data = await response.json();
       if (!response.ok)
-        throw new Error(data.error || "Produkt konnte nicht geladen werden.");
+        throw new Error(data.error || "Could not load the product.");
       setForm((f) => ({
         ...f,
         name: data.name || f.name,
@@ -323,7 +324,7 @@ export default function Home() {
     e.preventDefault();
     if (!safeUrl(link)) {
       setError(
-        "Bitte füge einen vollständigen Produktlink ein, zum Beispiel https://www.amazon.de/…",
+        "Enter a complete product URL, for example https://www.amazon.de/…",
       );
       return;
     }
@@ -348,7 +349,7 @@ export default function Home() {
       (form.image && !safeUrl(form.image))
     ) {
       setFormError(
-        "Bitte prüfe Name, Link, Preis (maximal zwei Nachkommastellen), Menge (1–999) und Bildlink.",
+        "Check the name, URL, price (up to two decimal places), quantity (1–999) and image URL.",
       );
       return;
     }
@@ -359,21 +360,21 @@ export default function Home() {
       image: safeUrl(form.image),
       price: Math.round(price * 100),
       quantity,
-      shop: form.shop === "Automatisch" ? shopFor(form.url) : form.shop,
+      shop: form.shop === "Auto-detect" ? shopFor(form.url) : form.shop,
     };
     if (
       products(
         editing
           ? cart.products.map((p) => (p.id === editing ? product : p))
           : [product, ...cart.products],
-        editing ? "Produkt aktualisiert." : "Produkt im Warenkorb gespeichert.",
+        editing ? "Product updated." : "Product im Cart saved.",
       )
     ) {
       setEditor(false);
       setLink("");
     } else {
       setFormError(
-        "Speichern fehlgeschlagen. Bitte prüfe den Cookie-Speicher; exportiere bei Bedarf deinen Warenkorb und kürze lange Bildlinks.",
+        "Could not save. Check cookie storage, export a backup or shorten image URLs.",
       );
     }
   }
@@ -386,21 +387,24 @@ export default function Home() {
     anchor.download = "justashoppingcart.json";
     anchor.click();
     URL.revokeObjectURL(url);
-    setNotice("Alle Warenkörbe als Sicherung exportiert.");
+    setNotice("All carts exported as a backup.");
   }
   async function importData(file?: File) {
     if (!file) return;
     try {
-      if (file.size > 100000) throw new Error("Die Datei ist zu groß.");
+      if (file.size > 100000) throw new Error("The file is too large.");
       const next: unknown = JSON.parse(await file.text());
       if (!validStore(next))
-        throw new Error("Diese Datei enthält keine gültigen Warenkörbe.");
-      const carts = next.carts.map((c) => ({ ...c, id: crypto.randomUUID() }));
+        throw new Error("This file does not contain valid carts.");
+      const carts = normalizeStore(next).carts.map((c) => ({
+        ...c,
+        id: crypto.randomUUID(),
+      }));
       if (store.carts.length + carts.length > 12)
-        throw new Error("Es sind maximal 12 Warenkörbe möglich.");
+        throw new Error("You can have up to 12 carts.");
       persist(
         { carts: [...store.carts, ...carts], active: carts[0].id },
-        "Sicherung als neue Warenkörbe importiert.",
+        "Backup imported as new carts.",
       );
     } catch (e) {
       setError((e as Error).message);
@@ -411,7 +415,7 @@ export default function Home() {
     e.preventDefault();
     if (!cartName.trim()) return;
     if (cartDialog === "new" && store.carts.length >= 12) {
-      setError("Es sind maximal 12 Warenkörbe möglich.");
+      setError("You can have up to 12 carts.");
       return;
     }
     const id = crypto.randomUUID();
@@ -431,12 +435,12 @@ export default function Home() {
                 c.id === cart.id ? { ...c, name: cartName.trim() } : c,
               ),
             },
-        "Warenkorb gespeichert.",
+        "Cart saved.",
       )
     ) {
       setCartDialog(null);
       setQuery("");
-      setFilter("Alle Shops");
+      setFilter("All shops");
     }
   }
   return (
@@ -445,7 +449,7 @@ export default function Home() {
         <a
           className="brand"
           href={`${basePath}/`}
-          aria-label="Just a Shopping Cart Startseite"
+          aria-label="Just a Shopping Cart home"
         >
           <span className="brand-icon">
             <ShoppingCart />
@@ -457,13 +461,13 @@ export default function Home() {
             </strong>
           </span>
         </a>
-        <div className="sidebar-label">DEIN SAMMELPLATZ</div>
+        <div className="sidebar-label">CARTS</div>
         <div className="sidebar-active">
           <ShoppingBag />
-          <span>Meine Warenkörbe</span>
+          <span>My carts</span>
           <Badge variant="secondary">{store.carts.length}</Badge>
         </div>
-        <nav aria-label="Warenkörbe" className="cart-nav">
+        <nav aria-label="Carts" className="cart-nav">
           {store.carts.map((c) => (
             <button
               disabled={!ready}
@@ -472,7 +476,7 @@ export default function Home() {
               onClick={() => {
                 persist({ ...store, active: c.id });
                 setQuery("");
-                setFilter("Alle Shops");
+                setFilter("All shops");
               }}
               className={cn("cart-nav-item", c.id === cart.id && "selected")}
             >
@@ -492,17 +496,17 @@ export default function Home() {
           }}
         >
           <Plus data-icon="inline-start" />
-          Neuer Warenkorb
+          New cart
         </Button>
         <div className="sidebar-bottom">
           <div className="local-note">
             <ShieldCheck />
-            <strong>Deine Funde. Dein Browser.</strong>
-            <p>Ohne Konto. Deine Warenkörbe bleiben in deinen Cookies.</p>
+            <strong>Local storage</strong>
+            <p>No account. Carts are stored in your browser cookies.</p>
           </div>
           <Button variant="ghost" onClick={() => setHelp(true)}>
             <Cookie data-icon="inline-start" />
-            Speicherung & Hilfe
+            Storage & help
             <ChevronRight data-icon="inline-end" />
           </Button>
           <div className="sidebar-version">
@@ -514,40 +518,29 @@ export default function Home() {
         <header className="topbar">
           <div className="breadcrumb">
             <ShoppingBag className="size-4" />
-            <span>Meine Warenkörbe</span>
+            <span>My carts</span>
             <ChevronRight className="size-3" />
             <strong className="truncate">{cart.name}</strong>
           </div>
           <Badge variant="outline">
             <span className="status-dot" />
-            Lokal gespeichert
+            Saved locally
           </Badge>
         </header>
         <main className="main-content">
           <section className="page-heading reveal">
             <div>
-              <div className="eyebrow">WENIGER TABS. MEHR ÜBERBLICK.</div>
-              <h1>
-                Alle deine Wünsche.
-                <br />
-                <span>Ein Warenkorb.</span>
-              </h1>
-              <p>
-                Sammle deine Lieblingsprodukte aus allen Shops an einem Ort.
-              </p>
+              <h1>Shopping cart</h1>
+              <p>Save product links, edit prices and track your total.</p>
             </div>
-            <span className="hero-cart" aria-hidden="true">
-              <ShoppingCart />
-              <span className="hero-plus">+</span>
-            </span>
           </section>
           {staticHost && (
             <Alert className="mb-5">
               <Link2 />
               <AlertDescription>
-                GitHub-Pages-Version: Links sammeln und Preise berechnen. Name,
-                Bild und Preis ergänzt du manuell. Automatisches Auslesen von
-                Shops benötigt einen Server.
+                GitHub Pages: save links and calculate totals. Enter product
+                details manually. Automatic import is available in the server
+                version.
               </AlertDescription>
             </Alert>
           )}
@@ -561,7 +554,7 @@ export default function Home() {
                 <Button
                   size="icon-xs"
                   variant="ghost"
-                  aria-label="Hinweis schließen"
+                  aria-label="Dismiss message"
                   onClick={() => {
                     setError("");
                     setNotice("");
@@ -575,13 +568,11 @@ export default function Home() {
           <Card className="reveal add-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <span className="text-primary">
-                  <Link2 className="size-4" />
-                </span>
-                Ein Link. Dein nächster Fund.
+                <Link2 className="size-4" />
+                Add a product link
               </CardTitle>
               <CardDescription>
-                Produktlink einfügen. Details übernehmen. Fertig.
+                Import product details or enter them manually.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -589,7 +580,7 @@ export default function Home() {
                 <FieldGroup>
                   <Field>
                     <FieldLabel className="sr-only" htmlFor="quick-link">
-                      Produktlink
+                      Product URL
                     </FieldLabel>
                     <InputGroup className="quick-input">
                       <InputGroupAddon>
@@ -598,7 +589,7 @@ export default function Home() {
                       <InputGroupInput
                         id="quick-link"
                         type="url"
-                        placeholder="Produktlink von Amazon, Kleinanzeigen oder einem anderen Shop …"
+                        placeholder="Paste a product URL from any shop…"
                         value={link}
                         maxLength={2048}
                         onChange={(e) => setLink(e.target.value)}
@@ -607,19 +598,17 @@ export default function Home() {
                       <InputGroupAddon align="inline-end">
                         <Button disabled={!ready} type="submit">
                           <Plus data-icon="inline-start" />
-                          <span className="hidden sm:inline">
-                            Produkt hinzufügen
-                          </span>
-                          <span className="sm:hidden">Hinzufügen</span>
+                          <span className="hidden sm:inline">Add product</span>
+                          <span className="sm:hidden">Add</span>
                         </Button>
                       </InputGroupAddon>
                     </InputGroup>
                   </Field>
                 </FieldGroup>
                 <div className="preset-row">
-                  <span>Importieren mit</span>
+                  <span>Shop preset</span>
                   <ToggleGroup
-                    aria-label="Shop-Vorlage"
+                    aria-label="Shop preset"
                     value={[preset]}
                     onValueChange={(v) => {
                       if (v[0]) setPreset(String(v[0]));
@@ -630,9 +619,9 @@ export default function Home() {
                   >
                     {shops.map((s) => (
                       <ToggleGroupItem key={s} value={s}>
-                        {s === "Automatisch" ? (
+                        {s === "Auto-detect" ? (
                           <Sparkles data-icon="inline-start" />
-                        ) : s === "Eigener Link" ? (
+                        ) : s === "Custom link" ? (
                           <Link2 data-icon="inline-start" />
                         ) : null}
                         {s}
@@ -644,9 +633,7 @@ export default function Home() {
             </CardContent>
             <CardFooter className="gap-2">
               <ShieldCheck className="size-3.5 shrink-0" />
-              <span>
-                Dein Warenkorb wird automatisch in diesem Browser gespeichert.
-              </span>
+              <span>Changes are saved in cookies in this browser.</span>
             </CardFooter>
           </Card>
           <div className="cart-heading reveal">
@@ -654,12 +641,12 @@ export default function Home() {
               <h2 className="truncate">{cart.name}</h2>
               <Badge variant="secondary">
                 {cart.products.length}{" "}
-                {cart.products.length === 1 ? "Produkt" : "Produkte"}
+                {cart.products.length === 1 ? "Product" : "Products"}
               </Badge>
               <Button
                 size="icon-sm"
                 variant="ghost"
-                aria-label="Warenkorb umbenennen"
+                aria-label="Rename cart"
                 disabled={!ready}
                 onClick={() => {
                   setCartName(cart.name);
@@ -692,7 +679,7 @@ export default function Home() {
               <Button
                 variant="ghost"
                 size="icon-sm"
-                aria-label="Warenkorb löschen"
+                aria-label="Delete cart"
                 disabled={!ready}
                 onClick={() => setDeleting(true)}
               >
@@ -701,7 +688,7 @@ export default function Home() {
               <input
                 ref={importRef}
                 className="hidden"
-                aria-label="Warenkörbe importieren"
+                aria-label="Import carts"
                 type="file"
                 accept="application/json,.json"
                 onChange={(e) => void importData(e.target.files?.[0])}
@@ -709,47 +696,47 @@ export default function Home() {
             </div>
           </div>
           <div className="cart-layout">
-            <section className="products-section reveal" aria-label="Produkte">
+            <section className="products-section reveal" aria-label="Products">
               <div className="toolbar">
                 <InputGroup>
                   <InputGroupAddon>
                     <Search />
                   </InputGroupAddon>
                   <InputGroupInput
-                    aria-label="Produkte suchen"
-                    placeholder="Produkte suchen …"
+                    aria-label="Search products"
+                    placeholder="Search products …"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                   />
                 </InputGroup>
                 <NativeSelect
-                  aria-label="Nach Shop filtern"
+                  aria-label="Filter by shop"
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
                 >
-                  <NativeSelectOption>Alle Shops</NativeSelectOption>
+                  <NativeSelectOption>All shops</NativeSelectOption>
                   {sources.map((s) => (
                     <NativeSelectOption key={s}>{s}</NativeSelectOption>
                   ))}
                 </NativeSelect>
                 <NativeSelect
-                  aria-label="Produkte sortieren"
+                  aria-label="Sort products"
                   value={sort}
                   onChange={(e) => setSort(e.target.value)}
                 >
                   <NativeSelectOption value="newest">
-                    Zuletzt hinzugefügt
+                    Newest first
                   </NativeSelectOption>
                   <NativeSelectOption value="price-asc">
-                    Preis aufsteigend
+                    Price: low to high
                   </NativeSelectOption>
                   <NativeSelectOption value="price-desc">
-                    Preis absteigend
+                    Price: high to low
                   </NativeSelectOption>
                   <NativeSelectOption value="name">Name A–Z</NativeSelectOption>
                 </NativeSelect>
                 <ToggleGroup
-                  aria-label="Ansicht"
+                  aria-label="View"
                   value={[view]}
                   onValueChange={(v) => {
                     if (v[0]) setView(String(v[0]));
@@ -758,10 +745,10 @@ export default function Home() {
                   variant="outline"
                   spacing={0}
                 >
-                  <ToggleGroupItem value="grid" aria-label="Rasteransicht">
+                  <ToggleGroupItem value="grid" aria-label="Grid view">
                     <LayoutGrid />
                   </ToggleGroupItem>
-                  <ToggleGroupItem value="list" aria-label="Listenansicht">
+                  <ToggleGroupItem value="list" aria-label="List view">
                     <List />
                   </ToggleGroupItem>
                 </ToggleGroup>
@@ -771,7 +758,7 @@ export default function Home() {
                   className="py-20 text-center text-muted-foreground"
                   role="status"
                 >
-                  Deine Warenkörbe werden geladen …
+                  Loading carts…
                 </p>
               ) : !visible.length ? (
                 <Empty className="empty-cart">
@@ -786,24 +773,24 @@ export default function Home() {
                     </EmptyMedia>
                     <EmptyTitle>
                       {cart.products.length
-                        ? "Kein passender Fund"
-                        : "Hier ist Platz für deine Wünsche."}
+                        ? "No matching products"
+                        : "Your cart is empty"}
                     </EmptyTitle>
                     <EmptyDescription>
                       {cart.products.length
-                        ? "Passe deine Suche oder den Shop-Filter an."
-                        : "Von der neuen Couch bis zum nächsten Setup: Speichere deinen ersten Produktlink und behalte die Kosten im Blick."}
+                        ? "Try a different search or shop filter."
+                        : "Add a product URL, enter its details and track the total cost."}
                     </EmptyDescription>
                   </EmptyHeader>
                   <EmptyContent>
                     <Button onClick={() => openEditor()}>
                       <Plus data-icon="inline-start" />
                       {cart.products.length
-                        ? "Produkt hinzufügen"
-                        : "Erstes Produkt hinzufügen"}
+                        ? "Add product"
+                        : "Add your first product"}
                     </Button>
                     <span className="text-xs text-muted-foreground">
-                      Jeder Shop. Alles an einem Ort.
+                      Add links from any shop.
                     </span>
                   </EmptyContent>
                 </Empty>
@@ -827,7 +814,7 @@ export default function Home() {
                           className="product-edit"
                           size="icon-sm"
                           variant="secondary"
-                          aria-label={`${p.name} bearbeiten`}
+                          aria-label={`${p.name} edit`}
                           onClick={() => openEditor(p)}
                         >
                           <Pencil />
@@ -851,26 +838,24 @@ export default function Home() {
                       </CardHeader>
                       <CardContent className="product-price">
                         <strong>{money(p.price * p.quantity)}</strong>
-                        {p.quantity > 1 && (
-                          <span>{money(p.price)} / Stück</span>
-                        )}
+                        {p.quantity > 1 && <span>{money(p.price)} / unit</span>}
                       </CardContent>
                       <CardFooter className="justify-between gap-2">
                         <div className="quantity-control">
                           <Button
                             size="icon-xs"
                             variant="ghost"
-                            aria-label={`${p.name} Menge verringern`}
+                            aria-label={`${p.name} decrease quantity`}
                             disabled={p.quantity <= 1}
                             onClick={() => updateQuantity(p, p.quantity - 1)}
                           >
                             <Minus />
                           </Button>
-                          <span aria-label="Menge">{p.quantity}</span>
+                          <span aria-label="Quantity">{p.quantity}</span>
                           <Button
                             size="icon-xs"
                             variant="ghost"
-                            aria-label={`${p.name} Menge erhöhen`}
+                            aria-label={`${p.name} increase quantity`}
                             disabled={p.quantity >= 999}
                             onClick={() => updateQuantity(p, p.quantity + 1)}
                           >
@@ -880,11 +865,11 @@ export default function Home() {
                         <Button
                           size="icon-sm"
                           variant="ghost"
-                          aria-label={`${p.name} entfernen`}
+                          aria-label={`${p.name} remove`}
                           onClick={() =>
                             products(
                               cart.products.filter((item) => item.id !== p.id),
-                              "Produkt entfernt.",
+                              "Product removed.",
                             )
                           }
                         >
@@ -898,11 +883,11 @@ export default function Home() {
               <div className="under-products">
                 <span>
                   <Check className="size-3.5" />
-                  Kein Konto erforderlich
+                  No account required
                 </span>
                 <span>
                   <Cookie className="size-3.5" />
-                  In deinen Cookies gespeichert
+                  Saved in your cookies
                 </span>
               </div>
             </section>
@@ -912,12 +897,12 @@ export default function Home() {
                   <div className="summary-icon">
                     <ShoppingCart />
                   </div>
-                  <CardTitle>Dein Überblick</CardTitle>
-                  <CardDescription>Große Pläne. Klare Zahlen.</CardDescription>
+                  <CardTitle>Summary</CardTitle>
+                  <CardDescription>Current cart totals.</CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-5">
                   <div className="summary-row">
-                    <span>Produkte</span>
+                    <span>Products</span>
                     <strong>{count}</strong>
                   </div>
                   <div className="summary-row">
@@ -926,14 +911,12 @@ export default function Home() {
                   </div>
                   <Separator />
                   <div className="flex flex-col gap-2">
-                    <span className="text-sm text-muted-foreground">
-                      Gesamtsumme
-                    </span>
+                    <span className="text-sm text-muted-foreground">Total</span>
                     <strong className="total" aria-live="polite">
                       {money(total)}
                     </strong>
                     <span className="text-xs text-muted-foreground">
-                      Ohne zusätzliche Versandkosten
+                      Excludes additional shipping
                     </span>
                   </div>
                   <Button
@@ -943,42 +926,24 @@ export default function Home() {
                     disabled={!ready}
                   >
                     <Plus data-icon="inline-start" />
-                    Weiteren Fund hinzufügen
+                    Add product
                   </Button>
                   <p className="summary-disclaimer">
-                    Deine persönliche Merkliste. Der Kauf findet direkt beim
-                    jeweiligen Shop statt.
+                    This is a saved list. Open the product link to buy from the
+                    shop.
                   </p>
                 </CardContent>
                 <CardFooter className="gap-2">
                   <ShieldCheck className="size-4 shrink-0" />
-                  <span>Nur in deinem Browser gespeichert</span>
+                  <span>Stored in this browser</span>
                 </CardFooter>
               </Card>
-              <div className="tip">
-                <Sparkles className="size-4" />
-                <div>
-                  <strong>Gute Funde brauchen keinen Tab.</strong>
-                  <p>
-                    Link kopieren, hier einfügen und später in Ruhe entscheiden.
-                  </p>
-                </div>
-              </div>
-              <div className="shops-note">
-                <span>DEINE LIEBLINGSSHOPS, VEREINT.</span>
-                <div>
-                  <strong>amazon</strong>
-                  <strong>kleinanzeigen</strong>
-                  <strong>ebay</strong>
-                  <span>+ mehr</span>
-                </div>
-              </div>
             </aside>
           </div>
           <footer className="page-footer">
             <Button variant="ghost" size="sm" onClick={() => setHelp(true)}>
               <Cookie data-icon="inline-start" />
-              Speicherung & Hilfe
+              Storage & help
             </Button>
             <span>
               just a shopping cart<span className="text-primary">.</span>
@@ -999,16 +964,16 @@ export default function Home() {
         <DialogContent className="editor-dialog sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {editing ? "Produkt bearbeiten" : "Neuen Fund hinzufügen"}
+              {editing ? "Edit product" : "Add product"}
             </DialogTitle>
             <DialogDescription>
-              Übernimm die Shop-Daten oder trage deine eigenen Angaben ein.
+              Import product details or enter them manually.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={saveProduct} className="flex flex-col gap-5">
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="product-shop">Shop-Vorlage</FieldLabel>
+                <FieldLabel htmlFor="product-shop">Shop preset</FieldLabel>
                 <NativeSelect
                   id="product-shop"
                   value={form.shop}
@@ -1024,7 +989,7 @@ export default function Home() {
                 </NativeSelect>
               </Field>
               <Field>
-                <FieldLabel htmlFor="product-url">Produktlink</FieldLabel>
+                <FieldLabel htmlFor="product-url">Product URL</FieldLabel>
                 <Input
                   id="product-url"
                   type="url"
@@ -1042,7 +1007,7 @@ export default function Home() {
                   type="button"
                   variant="outline"
                   disabled={
-                    staticHost || loading || form.shop === "Eigener Link"
+                    staticHost || loading || form.shop === "Custom link"
                   }
                   onClick={() => void lookup(form.url, form.shop)}
                 >
@@ -1055,27 +1020,27 @@ export default function Home() {
                     <Sparkles data-icon="inline-start" />
                   )}
                   {loading
-                    ? "Produkt wird geladen …"
+                    ? "Loading product…"
                     : staticHost
-                      ? "Nur mit Server verfügbar"
-                      : "Name, Bild & Preis auslesen"}
+                      ? "Requires the server version"
+                      : "Import name, image & price"}
                 </Button>
               </Field>
               <Field>
-                <FieldLabel htmlFor="product-name">Produktname</FieldLabel>
+                <FieldLabel htmlFor="product-name">Product name</FieldLabel>
                 <Input
                   id="product-name"
                   required
                   maxLength={180}
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="Was hast du entdeckt?"
+                  placeholder="Product name"
                 />
               </Field>
               <div className="grid grid-cols-2 gap-4">
                 <Field>
                   <FieldLabel htmlFor="product-price">
-                    Preis pro Stück (€)
+                    Unit price (€)
                   </FieldLabel>
                   <Input
                     id="product-price"
@@ -1085,11 +1050,11 @@ export default function Home() {
                     onChange={(e) =>
                       setForm({ ...form, price: e.target.value })
                     }
-                    placeholder="0,00"
+                    placeholder="0.00"
                   />
                 </Field>
                 <Field>
-                  <FieldLabel htmlFor="product-quantity">Menge</FieldLabel>
+                  <FieldLabel htmlFor="product-quantity">Quantity</FieldLabel>
                   <Input
                     id="product-quantity"
                     type="number"
@@ -1106,7 +1071,7 @@ export default function Home() {
               <Field>
                 <FieldLabel htmlFor="product-image">
                   <ImageIcon className="size-3.5" />
-                  Bildlink (optional)
+                  Image URL (optional)
                 </FieldLabel>
                 <Input
                   id="product-image"
@@ -1114,7 +1079,7 @@ export default function Home() {
                   maxLength={2048}
                   value={form.image}
                   onChange={(e) => setForm({ ...form, image: e.target.value })}
-                  placeholder="https://…/produkt.jpg"
+                  placeholder="https://…/product.jpg"
                 />
               </Field>
             </FieldGroup>
@@ -1135,11 +1100,11 @@ export default function Home() {
                   setLoading(false);
                 }}
               >
-                Abbrechen
+                Cancel
               </Button>
               <Button type="submit" disabled={loading}>
                 <Check data-icon="inline-start" />
-                {editing ? "Änderungen speichern" : "Im Warenkorb speichern"}
+                {editing ? "Save changes" : "Save product"}
               </Button>
             </DialogFooter>
           </form>
@@ -1154,12 +1119,10 @@ export default function Home() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {cartDialog === "new"
-                ? "Ein neuer Warenkorb"
-                : "Warenkorb umbenennen"}
+              {cartDialog === "new" ? "New cart" : "Rename cart"}
             </DialogTitle>
             <DialogDescription>
-              Ein Platz für dein nächstes Projekt oder deine Wunschliste.
+              Keep separate carts for different lists or projects.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={saveCart} className="flex flex-col gap-5">
@@ -1173,7 +1136,7 @@ export default function Home() {
                   maxLength={60}
                   value={cartName}
                   onChange={(e) => setCartName(e.target.value)}
-                  placeholder="Zum Beispiel: Mein neues Setup"
+                  placeholder="For example: Desk setup"
                 />
               </Field>
             </FieldGroup>
@@ -1183,9 +1146,9 @@ export default function Home() {
                 variant="outline"
                 onClick={() => setCartDialog(null)}
               >
-                Abbrechen
+                Cancel
               </Button>
-              <Button type="submit">Speichern</Button>
+              <Button type="submit">Save</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -1193,15 +1156,15 @@ export default function Home() {
       <Dialog open={deleting} onOpenChange={setDeleting}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Warenkorb löschen?</DialogTitle>
+            <DialogTitle>Delete cart?</DialogTitle>
             <DialogDescription>
-              „{cart.name}“ und die enthaltenen Produkte werden aus deinen
-              Cookies entfernt. Du kannst vorher eine Sicherung exportieren.
+              The cart “{cart.name}” and its products will be removed from your
+              cookies. Export a backup first if needed.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleting(false)}>
-              Abbrechen
+              Cancel
             </Button>
             <Button
               variant="destructive"
@@ -1212,16 +1175,16 @@ export default function Home() {
                     remaining.length
                       ? { carts: remaining, active: remaining[0].id }
                       : emptyStore(),
-                    "Warenkorb gelöscht.",
+                    "Cart deleted.",
                   )
                 ) {
                   setDeleting(false);
-                  setFilter("Alle Shops");
+                  setFilter("All shops");
                   setQuery("");
                 }
               }}
             >
-              Warenkorb löschen
+              Delete cart
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1229,53 +1192,47 @@ export default function Home() {
       <Dialog open={help} onOpenChange={setHelp}>
         <DialogContent className="help-dialog sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Deine Funde bleiben bei dir.</DialogTitle>
-            <DialogDescription>
-              So funktioniert Just a Shopping Cart.
-            </DialogDescription>
+            <DialogTitle>Storage & help</DialogTitle>
+            <DialogDescription>How this tool works.</DialogDescription>
           </DialogHeader>
           <div className="help-content">
             <p>
-              <strong>Speicherung:</strong> Deine Warenkörbe werden für bis zu
-              einem Jahr in Cookies dieses Browsers gespeichert. Löschst du die
-              Cookies, verschwinden auch deine Warenkörbe. Es gibt keine
-              Synchronisierung zwischen Geräten. Mit Export und Import kannst du
-              Sicherungen übertragen.
+              <strong>Storage:</strong> Carts are stored in this browser’s
+              cookies for up to a year. Clearing cookies removes your carts.
+              There is no device sync. Use Export and Import to transfer a
+              backup.
             </p>
             <p>
-              <strong>Automatischer Import:</strong>{" "}
+              <strong>Automatic import:</strong>{" "}
               {staticHost
-                ? "Auf GitHub Pages nicht verfügbar. Trage Name, Bild und Preis manuell ein. In der Server-Version gilt: "
+                ? "Not available on GitHub Pages. Enter product details manually. In the server version: "
                 : ""}
-              Amazon.de/.com, Kleinanzeigen, eBay.de, OTTO und IKEA werden
-              unterstützt, sofern die Seite Produktdaten bereitstellt und den
-              Abruf erlaubt. Der Produktlink wird dafür an unseren Server und
-              den jeweiligen Shop gesendet. Preise werden beim Import
-              ausgelesen, nicht laufend aktualisiert. Bitte prüfe alle Angaben.
+              Amazon.de/.com, Kleinanzeigen, eBay.de, OTTO and IKEA are
+              supported when the shop provides metadata and allows access. The
+              product URL is sent to our server and the shop. Prices are
+              snapshots, not live updates. Check the imported details.
             </p>
             <p>
-              <strong>Eigener Link:</strong> Bei jedem anderen Shop kannst du
-              Name, Preis und Bild selbst eintragen. Produktbilder werden vom
-              angegebenen Bildanbieter geladen.
+              <strong>Custom link:</strong> For any other shop, enter the name,
+              price and image yourself. Images are loaded from the image
+              provider you specify.
             </p>
             <p>
-              <strong>Cookie-Speicher:</strong> Cookies bieten begrenzten Platz.
-              Bei einer vollen Liste erhältst du einen Hinweis. Lange Bildlinks
-              benötigen besonders viel Platz. Exportiere regelmäßig eine
-              Sicherung.
+              <strong>Cookie storage:</strong> Cookies have limited space. The
+              app will tell you when storage is full. Long image URLs use more
+              space. Export backups regularly.
             </p>
             <p>
-              <strong>Gesamtsumme:</strong> Alle Preise sind in Euro. Mengen
-              werden berücksichtigt; zusätzliche Versandkosten, Preisänderungen
-              und Gutscheine sind nicht enthalten.
+              <strong>Total:</strong> All prices are in euros. Totals include
+              quantities, but exclude additional shipping, price changes and
+              discounts.
             </p>
           </div>
           <DialogFooter>
-            <Button onClick={() => setHelp(false)}>Verstanden</Button>
+            <Button onClick={() => setHelp(false)}>Got it</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   );
 }
-

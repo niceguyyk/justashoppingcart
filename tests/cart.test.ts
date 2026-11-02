@@ -14,7 +14,7 @@ test("shop detection cannot be spoofed with a suffix", () => {
   assert.equal(shopFor("https://www.amazon.de/dp/test"), "Amazon");
   assert.equal(
     shopFor("https://amazon.de.attacker.example/item"),
-    "Eigener Link",
+    "Custom link",
   );
   assert.equal(
     shopFor("https://www.kleinanzeigen.de/s-anzeige/abc"),
@@ -24,8 +24,8 @@ test("shop detection cannot be spoofed with a suffix", () => {
   assert.equal(safeUrl("https://user:pass@example.com"), "");
 });
 test("Euro prices format from integer cents", () => {
-  assert.match(money(8999 * 3), /269,97/);
-  assert.match(money(10 + 20), /0,30/);
+  assert.match(money(8999 * 3), /269\.97/);
+  assert.match(money(10 + 20), /0\.30/);
 });
 test("invalid imported quantities and unsafe links are rejected", () => {
   const s = emptyStore();
@@ -36,7 +36,7 @@ test("invalid imported quantities and unsafe links are rejected", () => {
     image: "",
     price: 1999,
     quantity: 2,
-    shop: "Eigener Link",
+    shop: "Custom link",
   });
   assert.equal(validStore(s), true);
   s.carts[0].products[0].quantity = -1;
@@ -75,7 +75,7 @@ test("chunked cookies round-trip Unicode; oversized updates retain previous data
       image: "https://example.com/image.jpg",
       price: 8999,
       quantity: 2,
-      shop: "Eigener Link",
+      shop: "Custom link",
     });
   saveStore(s);
   assert.deepEqual(readStore(), s);
@@ -83,8 +83,35 @@ test("chunked cookies round-trip Unicode; oversized updates retain previous data
   const tooLarge = structuredClone(s);
   tooLarge.carts[0].products[0].image =
     "https://example.com/" + "x".repeat(10000);
-  assert.throws(() => saveStore(tooLarge), /voll/);
+  assert.throws(() => saveStore(tooLarge), /full/);
   assert.deepEqual(readStore(), s);
   jar.set("jasc_0", "%bad");
   assert.deepEqual(readStore(), emptyStore());
+});
+
+test("legacy labels are translated without changing user product names or totals", async () => {
+  const { normalizeStore } = await import("../src/lib/cart.ts");
+  const legacy = emptyStore();
+  legacy.carts[0].name = "Mein Warenkorb";
+  legacy.carts[0].products.push({
+    id: "legacy",
+    name: "Mein eigener Produktname",
+    url: "https://example.com/item",
+    image: "",
+    price: 1995,
+    quantity: 2,
+    shop: "Eigener Link",
+  });
+  const normalized = normalizeStore(legacy);
+  assert.equal(normalized.carts[0].name, "My cart");
+  assert.equal(normalized.carts[0].products[0].shop, "Custom link");
+  assert.equal(
+    normalized.carts[0].products[0].name,
+    "Mein eigener Produktname",
+  );
+  assert.equal(
+    normalized.carts[0].products[0].price *
+      normalized.carts[0].products[0].quantity,
+    3990,
+  );
 });

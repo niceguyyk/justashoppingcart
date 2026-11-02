@@ -10,7 +10,7 @@ function allowed(value: string) {
       !u.username &&
       !u.password &&
       !u.port &&
-      shopFor(u.href) !== "Eigener Link"
+      shopFor(u.href) !== "Custom link"
     );
   } catch {
     return false;
@@ -19,13 +19,16 @@ function allowed(value: string) {
 export async function POST(request: NextRequest) {
   try {
     if (Number(request.headers.get("content-length")) > 4096)
-      return NextResponse.json({ error: "Link ist zu lang." }, { status: 400 });
+      return NextResponse.json(
+        { error: "The URL is too long." },
+        { status: 400 },
+      );
     const { url } = await request.json();
     if (typeof url !== "string" || url.length > 2048 || !allowed(url))
       return NextResponse.json(
         {
           error:
-            "Automatischer Import unterstützt Amazon.de/.com, Kleinanzeigen, eBay.de, OTTO und IKEA. Andere Links kannst du manuell hinzufügen.",
+            "Automatic import supports Amazon.de/.com, Kleinanzeigen, eBay.de, OTTO and IKEA. Add other URLs manually.",
         },
         { status: 400 },
       );
@@ -49,7 +52,7 @@ export async function POST(request: NextRequest) {
         await response.body?.cancel();
         if (!allowed(next))
           throw new Error(
-            "Die Weiterleitung wird nicht unterstützt. Nutze bitte den direkten Produktlink.",
+            "This redirect is not supported. Use the direct product URL.",
           );
         current = next;
         response = undefined;
@@ -60,10 +63,10 @@ export async function POST(request: NextRequest) {
       !response.headers.get("content-type")?.includes("text/html")
     )
       throw new Error(
-        "Der Shop erlaubt gerade keinen automatischen Abruf. Bitte ergänze die Produktdaten selbst.",
+        "The shop is blocking automatic access. Enter the product details manually.",
       );
     const reader = response.body?.getReader();
-    if (!reader) throw new Error("Keine Produktdaten erhalten.");
+    if (!reader) throw new Error("No product data received.");
     const chunks: Uint8Array[] = [];
     let bytes = 0;
     while (true) {
@@ -73,7 +76,7 @@ export async function POST(request: NextRequest) {
       if (bytes > 2_000_000) {
         await reader.cancel();
         throw new Error(
-          "Produktseite ist zu groß. Bitte ergänze die Daten selbst.",
+          "The product page is too large. Enter the details manually.",
         );
       }
       chunks.push(value);
@@ -89,8 +92,8 @@ export async function POST(request: NextRequest) {
       shop: shopFor(current),
       warning:
         price === null
-          ? "Kein EUR-Preis gefunden. Bitte trage den Preis selbst ein."
-          : "Daten übernommen. Bitte prüfe Preis und Produkt vor dem Speichern.",
+          ? "No EUR price found. Enter the price manually."
+          : "Details imported. Check the product and price before saving.",
     });
   } catch (error) {
     return NextResponse.json(
@@ -98,7 +101,7 @@ export async function POST(request: NextRequest) {
         error:
           error instanceof Error && error.name !== "TimeoutError"
             ? error.message
-            : "Der Abruf dauert zu lange. Bitte ergänze die Daten selbst.",
+            : "The request timed out. Enter the details manually.",
       },
       { status: 422 },
     );

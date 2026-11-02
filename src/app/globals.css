@@ -130,23 +130,23 @@
 }
 /* Brand tokens build on the official Nova preset. */
 .dark {
-  --background: #111412;
-  --foreground: #edf0eb;
-  --card: #191d19;
-  --card-foreground: #edf0eb;
-  --popover: #1b201b;
-  --popover-foreground: #edf0eb;
-  --primary: #c2f47a;
-  --primary-foreground: #1b2b0e;
-  --secondary: #282f25;
-  --secondary-foreground: #e0e8dc;
-  --muted: #222822;
-  --muted-foreground: #9ca699;
-  --accent: #2c3627;
-  --accent-foreground: #d6f7b0;
-  --border: #30372e;
-  --input: #394234;
-  --ring: #a5ce75;
+  --background: #080808;
+  --foreground: #ededed;
+  --card: #111111;
+  --card-foreground: #ededed;
+  --popover: #151515;
+  --popover-foreground: #ededed;
+  --primary: #f4f4f5;
+  --primary-foreground: #111111;
+  --secondary: #242424;
+  --secondary-foreground: #e4e4e7;
+  --muted: #1d1d1d;
+  --muted-foreground: #a1a1aa;
+  --accent: #262626;
+  --accent-foreground: #fafafa;
+  --border: #2c2c2c;
+  --input: #383838;
+  --ring: #a1a1aa;
   --destructive: #ff9a91;
 }
 @theme inline {
@@ -175,7 +175,7 @@ select {
   padding: 35px 20px 22px;
   display: flex;
   flex-direction: column;
-  background: #141814;
+  background: #0c0c0c;
 }
 .brand {
   display: flex;
@@ -283,7 +283,7 @@ select {
   padding: 17px 14px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: linear-gradient(140deg, #28332255, transparent);
+  background: linear-gradient(140deg, #24242455, transparent);
 }
 .local-note > svg {
   width: 21px;
@@ -390,12 +390,12 @@ h1 span {
   place-items: center;
   border: 1px solid var(--border);
   border-radius: 29px;
-  background: linear-gradient(140deg, #28332288, #1b2119);
+  background: linear-gradient(140deg, #24242488, #181818);
   transform: rotate(-9deg);
   margin-right: 28px;
   color: var(--primary);
   box-shadow:
-    12px 12px 0 #1a2018,
+    12px 12px 0 #151515,
     12px 12px 0 1px var(--border);
 }
 .hero-cart > svg {
@@ -492,7 +492,7 @@ h2 {
 .product-image {
   height: 175px;
   position: relative;
-  background: #e9ece4;
+  background: #e8e8e8;
   margin-top: calc(-1 * var(--card-spacing));
   overflow: hidden;
 }
@@ -509,8 +509,8 @@ h2 {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #7b8873;
-  background: radial-gradient(ellipse at 50% 60%, #dce4d2, #ecede8);
+  color: #737373;
+  background: radial-gradient(ellipse at 50% 60%, #dedede, #eeeeee);
 }
 .image-placeholder > svg {
   width: 46px;
@@ -540,7 +540,7 @@ h2 {
   height: 10px;
 }
 .shop-amazon {
-  color: #ffbb58;
+  color: #e4e4e7;
 }
 .shop-kleinanzeigen {
   color: var(--primary);
@@ -644,7 +644,7 @@ h2 {
 }
 .empty-cart {
   border: 1px dashed var(--border);
-  background: linear-gradient(150deg, #1c231955, transparent);
+  background: linear-gradient(150deg, #18181855, transparent);
   min-height: 365px;
 }
 .empty-illustration {
@@ -654,7 +654,7 @@ h2 {
   place-items: center;
   position: relative;
   border-radius: 22px;
-  border: 1px solid #435238;
+  border: 1px solid #3f3f46;
   background: var(--accent);
   transform: rotate(-7deg);
   margin-bottom: 12px;
@@ -1082,5 +1082,47 @@ h2 {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* Compact workspace: a utility, without promotional sections. */
+.brand {
+  margin-bottom: 32px;
+}
+.brand-icon {
+  transform: none;
+  border-radius: 10px;
+}
+.main-content {
+  padding-top: 28px;
+}
+.page-heading {
+  margin-bottom: 24px;
+}
+h1 {
+  font-size: 29px;
+  line-height: 1.2;
+  letter-spacing: -0.9px;
+}
+.page-heading p {
+  margin-top: 8px;
+}
+.empty-illustration {
+  transform: none;
+  background: var(--muted);
+  border-color: var(--border);
+}
+.empty-cart {
+  min-height: 280px;
+}
+@media (max-width: 760px) {
+  .brand {
+    margin-bottom: 0;
+  }
+  h1 {
+    font-size: 26px;
+  }
+  .main-content {
+    padding-top: 22px;
   }
 }
