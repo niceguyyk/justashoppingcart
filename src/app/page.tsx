@@ -79,6 +79,8 @@ import {
   validStore,
 } from "@/lib/cart";
 gsap.registerPlugin(useGSAP);
+const staticHost = process.env.NEXT_PUBLIC_STATIC_HOST === "true";
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const blank = {
   name: "",
   url: "",
@@ -277,6 +279,16 @@ export default function Home() {
       setFormHint("Trage Name, Preis und optional einen Bildlink ein.");
       return;
     }
+    if (staticHost) {
+      setForm((f) => ({
+        ...f,
+        shop: shop === "Automatisch" ? shopFor(url) : shop,
+      }));
+      setFormHint(
+        "Shop erkannt. Auf GitHub Pages ergänzt du Name, Bild und Preis manuell; automatisches Auslesen benötigt einen Server.",
+      );
+      return;
+    }
     requestRef.current?.abort();
     const controller = new AbortController();
     requestRef.current = controller;
@@ -284,7 +296,7 @@ export default function Home() {
     setFormError("");
     setFormHint("");
     try {
-      const response = await fetch("/api/product", {
+      const response = await fetch(`${basePath}/api/product`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url }),
@@ -432,7 +444,7 @@ export default function Home() {
       <aside className="sidebar">
         <a
           className="brand"
-          href="/"
+          href={`${basePath}/`}
           aria-label="Just a Shopping Cart Startseite"
         >
           <span className="brand-icon">
@@ -529,6 +541,16 @@ export default function Home() {
               <span className="hero-plus">+</span>
             </span>
           </section>
+          {staticHost && (
+            <Alert className="mb-5">
+              <Link2 />
+              <AlertDescription>
+                GitHub-Pages-Version: Links sammeln und Preise berechnen. Name,
+                Bild und Preis ergänzt du manuell. Automatisches Auslesen von
+                Shops benötigt einen Server.
+              </AlertDescription>
+            </Alert>
+          )}
           {(error || notice) && (
             <Alert variant={error ? "destructive" : "default"} className="mb-5">
               <AlertDescription
@@ -1019,7 +1041,9 @@ export default function Home() {
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={loading || form.shop === "Eigener Link"}
+                  disabled={
+                    staticHost || loading || form.shop === "Eigener Link"
+                  }
                   onClick={() => void lookup(form.url, form.shop)}
                 >
                   {loading ? (
@@ -1032,7 +1056,9 @@ export default function Home() {
                   )}
                   {loading
                     ? "Produkt wird geladen …"
-                    : "Name, Bild & Preis auslesen"}
+                    : staticHost
+                      ? "Nur mit Server verfügbar"
+                      : "Name, Bild & Preis auslesen"}
                 </Button>
               </Field>
               <Field>
@@ -1217,12 +1243,15 @@ export default function Home() {
               Sicherungen übertragen.
             </p>
             <p>
-              <strong>Automatischer Import:</strong> Amazon.de/.com,
-              Kleinanzeigen, eBay.de, OTTO und IKEA werden unterstützt, sofern
-              die Seite Produktdaten bereitstellt und den Abruf erlaubt. Der
-              Produktlink wird dafür an unseren Server und den jeweiligen Shop
-              gesendet. Preise werden beim Import ausgelesen, nicht laufend
-              aktualisiert. Bitte prüfe alle Angaben.
+              <strong>Automatischer Import:</strong>{" "}
+              {staticHost
+                ? "Auf GitHub Pages nicht verfügbar. Trage Name, Bild und Preis manuell ein. In der Server-Version gilt: "
+                : ""}
+              Amazon.de/.com, Kleinanzeigen, eBay.de, OTTO und IKEA werden
+              unterstützt, sofern die Seite Produktdaten bereitstellt und den
+              Abruf erlaubt. Der Produktlink wird dafür an unseren Server und
+              den jeweiligen Shop gesendet. Preise werden beim Import
+              ausgelesen, nicht laufend aktualisiert. Bitte prüfe alle Angaben.
             </p>
             <p>
               <strong>Eigener Link:</strong> Bei jedem anderen Shop kannst du
@@ -1249,3 +1278,4 @@ export default function Home() {
     </div>
   );
 }
+

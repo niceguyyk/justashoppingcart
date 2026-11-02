@@ -48,3 +48,11 @@ Cookies sind browser- und gerätegebunden. Löschen der Cookies oder privates Br
 ## Prüfung
 
 `npm test` prüft Preisformatierung, Shop-Erkennung, Importvalidierung, Cookie-Rundlauf und Speicherlimit sowie JSON-LD-/Open-Graph-Extraktion, fehlende Preise, Fremdwährungen und blockierte Produktseiten. Browserprüfung umfasst manuelles Anlegen, Mengen, Neuladen mit Cookie-Wiederherstellung, Suche, Ansichten und mobiles Layout mit reduzierter Bewegung.
+
+## Veröffentlichung auf GitHub Pages
+
+Die statische Version wird mit `npm run build:pages` erzeugt. Der Ordner `out` enthält die Website für https://niceguyyk.github.io/justashoppingcart/.
+
+Der Workflow `.github/workflows/pages.yml` baut, testet und veröffentlicht bei Änderungen auf `main`. Einmalig im Repository unter **Settings → Pages → Build and deployment → Source → GitHub Actions** aktivieren. Falls der erste Deploy vor dieser Aktivierung fehlschlägt, den Workflow danach erneut ausführen.
+
+GitHub Pages führt keinen Servercode aus. Deshalb sind in dieser Version Shop-Erkennung und manuelle Produktangaben verfügbar; automatisches Auslesen ist klar als nicht verfügbar gekennzeichnet. Der normale `npm run build` behält die vollständige Server-Version mit `/api/product` bei. Cookies, Mengen, Gesamtsumme sowie Export und Import funktionieren in beiden Versionen.
