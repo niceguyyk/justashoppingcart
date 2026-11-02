@@ -34,7 +34,7 @@ The canonical local project directory is `C:\Users\nikos\Documents\JustAShopping
 
 ## X1 deployment
 
-The server version includes automatic product import; no database or API key is needed. Docker runs the app as an unprivileged user and restarts it after a reboot.
+The server version includes automatic product import; no external database or API key is needed. Docker runs the app as an unprivileged user and restarts it after a reboot.
 
 On X1, with Docker and the Compose plugin installed:
 
@@ -65,3 +65,18 @@ The importer only accesses HTTPS URLs on supported shop domains, checks each red
 ## Verification
 
 `npm test` covers integer-cent formatting, shop URL checks, imported-data validation, cookie round-trips and capacity, structured product metadata, missing prices, non-EUR prices and blocked pages. Check the main cart flows at desktop and mobile widths with reduced motion before deployment.
+
+## Accounts and sharing
+
+The X1/server version supports email/password registration and sign-in through Better Auth. Account carts autosave to SQLite on the server. Browser carts remain separate and can be imported explicitly after signing in. Simultaneous edits on different devices are detected; export your edits or reload the saved version if there is a conflict.
+
+Set `SHOPPING_CART_URL` in the server's ignored `.env` file to the exact URL you open, for example `http://<X1-address>:3030`, before running Compose. Authentication only accepts this configured origin. Use an HTTPS URL when exposing the app outside a trusted network.
+
+The named Docker volume `justashoppingcart_cart-data` stores the SQLite database, authentication secret and persistent sessions. Container rebuilds and restarts preserve it. Do not remove that volume. Back it up using SQLite's online backup API (or stop the container before copying the database and secret together). The local development directory defaults to ignored `work/data`; set `APP_DATA_DIR` and `BETTER_AUTH_URL` to use an isolated test instance. The secret is generated on the server and never committed.
+
+Passwords are hashed by Better Auth. Session cookies are HTTP-only, same-site and secure when the configured URL uses HTTPS. Email sending, verification email and password-reset email are not configured. Account data is scoped to the authenticated user; guest mode only uses browser cookies.
+
+To share a saved cart, sign in, press **Share**, and create a link. Links contain unguessable tokens, show an immutable read-only snapshot, and expire in 30 days. Anyone who can reach the server and has the link can view it without signing in, or copy it into their own carts. Owners can revoke links. Deleting a cart revokes its links. A user can have up to 50 active links. The current LAN address is only reachable from the same network; sharing across the internet requires a reachable HTTPS deployment URL.
+
+GitHub Pages remains browser-only; accounts, share-link creation and product import require the server version.
+

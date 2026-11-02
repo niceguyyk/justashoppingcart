@@ -24,6 +24,8 @@ import {
   Sparkles,
   Trash2,
   X,
+  Share2,
+  UserRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -71,7 +73,6 @@ import {
   type Store,
   emptyStore,
   readStore,
-  saveStore,
   safeUrl,
   shopFor,
   shops,
@@ -80,6 +81,10 @@ import {
   normalizeStore,
   newId,
 } from "@/lib/cart";
+import { useWorkspace } from "@/hooks/use-workspace";
+import { AccountDialog } from "@/components/cart/account-dialog";
+import { ShareDialog } from "@/components/cart/share-dialog";
+import { SharedCartView } from "@/components/cart/shared-cart-view";
 gsap.registerPlugin(useGSAP);
 const staticHost = process.env.NEXT_PUBLIC_STATIC_HOST === "true";
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -134,8 +139,8 @@ export default function Home() {
   const root = useRef<HTMLDivElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
   const requestRef = useRef<AbortController | null>(null);
-  const [store, setStore] = useState<Store>(emptyStore);
-  const [ready, setReady] = useState(false);
+  const workspace = useWorkspace(staticHost);
+  const { store, ready, user, status } = workspace;
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
@@ -154,9 +159,12 @@ export default function Home() {
   const [cartName, setCartName] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [help, setHelp] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [sharedToken, setSharedToken] = useState("");
   useEffect(() => {
-    setStore(readStore());
-    setReady(true);
+    if (!staticHost)
+      setSharedToken(new URL(location.href).searchParams.get("share") || "");
     return () => requestRef.current?.abort();
   }, []);
   const cart = store.carts.find((c) => c.id === store.active) || store.carts[0];
@@ -217,8 +225,7 @@ export default function Home() {
   );
   function persist(next: Store, message = "") {
     try {
-      saveStore(next);
-      setStore(next);
+      workspace.persist(next);
       setError("");
       if (message) setNotice(message);
       return true;
@@ -368,7 +375,7 @@ export default function Home() {
         editing
           ? cart.products.map((p) => (p.id === editing ? product : p))
           : [product, ...cart.products],
-        editing ? "Product updated." : "Product im Cart saved.",
+        editing ? "Product updated." : "Product added.",
       )
     ) {
       setEditor(false);
@@ -444,6 +451,47 @@ export default function Home() {
       setFilter("All shops");
     }
   }
+  function closeSharedView() {
+    history.replaceState(null, "", `${basePath}/`);
+    setSharedToken("");
+  }
+  function copySharedCart(shared: import("@/lib/cart").Cart) {
+    const copied = { ...shared, id: newId() };
+    if (
+      persist(
+        { carts: [...store.carts, copied], active: copied.id },
+        "Shared cart copied. Your edits do not change the original.",
+      )
+    )
+      closeSharedView();
+  }
+  function importBrowserCarts() {
+    const incoming = readStore()
+      .carts.filter((c) => c.products.length)
+      .map((c) => ({ ...c, id: newId() }));
+    if (!incoming.length) {
+      setNotice("There are no browser products to import.");
+      return;
+    }
+    const existing =
+      store.carts.length === 1 && !store.carts[0].products.length
+        ? []
+        : store.carts;
+    persist(
+      { carts: [...existing, ...incoming], active: incoming[0].id },
+      "Browser carts imported into your account.",
+    );
+  }
+  if (sharedToken)
+    return (
+      <SharedCartView
+        token={sharedToken}
+        onBack={closeSharedView}
+        onCopy={copySharedCart}
+        ready={ready}
+        copyError={error}
+      />
+    );
   return (
     <div ref={root} className="app-shell">
       <aside className="sidebar">
@@ -502,8 +550,12 @@ export default function Home() {
         <div className="sidebar-bottom">
           <div className="local-note">
             <ShieldCheck />
-            <strong>Local storage</strong>
-            <p>No account. Carts are stored in your browser cookies.</p>
+            <strong>{user ? "Account storage" : "Browser storage"}</strong>
+            <p>
+              {user
+                ? "Your carts are saved on this server."
+                : "Sign in to save carts across devices, or keep using browser cookies."}
+            </p>
           </div>
           <Button variant="ghost" onClick={() => setHelp(true)}>
             <Cookie data-icon="inline-start" />
@@ -523,10 +575,27 @@ export default function Home() {
             <ChevronRight className="size-3" />
             <strong className="truncate">{cart.name}</strong>
           </div>
-          <Badge variant="outline">
-            <span className="status-dot" />
-            Saved locally
-          </Badge>
+          <div className="account-actions">
+            <Badge variant="outline" role="status">
+              <span className="status-dot" />
+              {user
+                ? status === "saving"
+                  ? "Saving…"
+                  : status === "saved"
+                    ? "Saved to account"
+                    : "Not saved"
+                : "Saved locally"}
+            </Badge>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!ready}
+              onClick={() => setAccountOpen(true)}
+            >
+              <UserRound data-icon="inline-start" />
+              {user ? "Account" : "Sign in"}
+            </Button>
+          </div>
         </header>
         <main className="main-content">
           <section className="page-heading reveal">
@@ -535,6 +604,52 @@ export default function Home() {
               <p>Save product links, edit prices and track your total.</p>
             </div>
           </section>
+          {workspace.problem && (
+            <Alert variant="destructive" className="mb-5">
+              <AlertDescription className="flex flex-col gap-3">
+                <span role="status">{workspace.problem}</span>
+                <div className="flex flex-wrap gap-2">
+                  {status === "error" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={workspace.retry}
+                    >
+                      Retry save
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void workspace.reload()}
+                  >
+                    {user ? "Reload saved carts" : "Retry account connection"}
+                  </Button>
+                  {user && (
+                    <Button size="sm" variant="outline" onClick={exportData}>
+                      Export my edits
+                    </Button>
+                  )}
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+          {user &&
+            ready &&
+            readStore().carts.some((c) => c.products.length > 0) && (
+              <Alert className="mb-5">
+                <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+                  <span>You also have carts saved in this browser.</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={importBrowserCarts}
+                  >
+                    Import browser carts
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
           {staticHost && (
             <Alert className="mb-5">
               <Link2 />
@@ -634,7 +749,11 @@ export default function Home() {
             </CardContent>
             <CardFooter className="gap-2">
               <ShieldCheck className="size-3.5 shrink-0" />
-              <span>Changes are saved in cookies in this browser.</span>
+              <span>
+                {user
+                  ? "Changes are saved automatically to your account on this server."
+                  : "Changes are saved in cookies in this browser."}
+              </span>
             </CardFooter>
           </Card>
           <div className="cart-heading reveal">
@@ -658,6 +777,20 @@ export default function Home() {
               </Button>
             </div>
             <div className="flex gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                aria-label="Share cart"
+                disabled={
+                  !ready ||
+                  !cart.products.length ||
+                  (!!user && status !== "saved")
+                }
+                onClick={() => setShareOpen(true)}
+              >
+                <Share2 data-icon="inline-start" />
+                Share
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"
@@ -884,11 +1017,11 @@ export default function Home() {
               <div className="under-products">
                 <span>
                   <Check className="size-3.5" />
-                  No account required
+                  {user ? "Account storage" : "No account required"}
                 </span>
                 <span>
                   <Cookie className="size-3.5" />
-                  Saved in your cookies
+                  {user ? "Saved on this server" : "Saved in your cookies"}
                 </span>
               </div>
             </section>
@@ -936,7 +1069,9 @@ export default function Home() {
                 </CardContent>
                 <CardFooter className="gap-2">
                   <ShieldCheck className="size-4 shrink-0" />
-                  <span>Stored in this browser</span>
+                  <span>
+                    {user ? "Stored in your account" : "Stored in this browser"}
+                  </span>
                 </CardFooter>
               </Card>
             </aside>
@@ -1198,10 +1333,10 @@ export default function Home() {
           </DialogHeader>
           <div className="help-content">
             <p>
-              <strong>Storage:</strong> Carts are stored in this browser’s
-              cookies for up to a year. Clearing cookies removes your carts.
-              There is no device sync. Use Export and Import to transfer a
-              backup.
+              <strong>Storage:</strong> In browser mode, carts are stored in
+              cookies for up to a year. Signed-in carts are stored on this
+              server and load on other devices after signing in. Browser carts
+              stay separate until imported. Export backups regularly.
             </p>
             <p>
               <strong>Automatic import:</strong>{" "}
@@ -1224,6 +1359,12 @@ export default function Home() {
               space. Export backups regularly.
             </p>
             <p>
+              <strong>Sharing:</strong> Sign in to create read-only snapshot
+              links. Anyone with a link can view it without an account. Links
+              expire after 30 days, and you can revoke them. Deleting the
+              original cart revokes its links.
+            </p>
+            <p>
               <strong>Total:</strong> All prices are in euros. Totals include
               quantities, but exclude additional shipping, price changes and
               discounts.
@@ -1234,6 +1375,26 @@ export default function Home() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <AccountDialog
+        open={accountOpen}
+        onOpenChange={setAccountOpen}
+        user={user}
+        status={status}
+        onSession={workspace.reload}
+        signOut={workspace.signOut}
+        staticHost={staticHost}
+      />
+      <ShareDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        cart={cart}
+        user={user}
+        staticHost={staticHost}
+        onSignIn={() => {
+          setShareOpen(false);
+          setAccountOpen(true);
+        }}
+      />
     </div>
   );
 }

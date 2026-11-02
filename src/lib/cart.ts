@@ -66,15 +66,20 @@ export function emptyStore(): Store {
 }
 export function normalizeStore(s: Store): Store {
   return {
-    ...s,
+    active: s.active,
     carts: s.carts.map((c) => ({
-      ...c,
+      id: c.id,
       name:
         c.id === "mein-warenkorb" && c.name === "Mein Warenkorb"
           ? "My cart"
           : c.name,
       products: c.products.map((p) => ({
-        ...p,
+        id: p.id,
+        name: p.name,
+        url: p.url,
+        image: p.image,
+        price: p.price,
+        quantity: p.quantity,
         shop: p.shop === "Eigener Link" ? "Custom link" : p.shop,
       })),
     })),
@@ -93,7 +98,10 @@ export function validStore(value: unknown): value is Store {
       s.carts.every(
         (c) =>
           typeof c.id === "string" &&
+          c.id.length > 0 &&
+          c.id.length <= 128 &&
           typeof c.name === "string" &&
+          c.name.trim().length > 0 &&
           c.name.length <= 60 &&
           Array.isArray(c.products) &&
           c.products.length <= 100 &&
@@ -101,13 +109,20 @@ export function validStore(value: unknown): value is Store {
           c.products.every(
             (p) =>
               typeof p.id === "string" &&
+              p.id.length > 0 &&
+              p.id.length <= 128 &&
               typeof p.name === "string" &&
+              p.name.trim().length > 0 &&
               p.name.length <= 180 &&
               typeof p.url === "string" &&
+              p.url.length <= 8192 &&
               !!safeUrl(p.url) &&
               typeof p.image === "string" &&
+              p.image.length <= 8192 &&
               (!p.image || !!safeUrl(p.image)) &&
               typeof p.shop === "string" &&
+              p.shop.length > 0 &&
+              p.shop.length <= 60 &&
               Number.isSafeInteger(p.price) &&
               p.price >= 0 &&
               p.price <= 100000000 &&
@@ -149,7 +164,8 @@ export function saveStore(s: Store) {
     throw new Error(
       "Invalid cart data. You can have up to 12 carts and 100 products per cart.",
     );
-  const encoded = encodeURIComponent(JSON.stringify(s));
+  const value = normalizeStore(s);
+  const encoded = encodeURIComponent(JSON.stringify(value));
   if (encoded.length > 9000)
     throw new Error(
       "Cookie storage is full. Export a backup, then remove older products or shorten image URLs.",
@@ -161,8 +177,9 @@ export function saveStore(s: Store) {
   for (let i = 0; i < 3; i++)
     document.cookie = `jasc_${i}=${i < count ? encoded.slice(i * 3000, (i + 1) * 3000) : ""}${i < count ? flags : "; Path=/; Max-Age=0"}`;
   document.cookie = `jasc_count=${count}${flags}`;
-  if (JSON.stringify(readStore()) !== JSON.stringify(s))
+  if (JSON.stringify(readStore()) !== JSON.stringify(value))
     throw new Error(
       "Could not save cookies. Please allow cookies for this website.",
     );
 }
+

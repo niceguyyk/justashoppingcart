@@ -3,9 +3,15 @@ services:
     build: .
     image: justashoppingcart:local
     restart: unless-stopped
+    environment:
+      BETTER_AUTH_URL: "${SHOPPING_CART_URL:?Set SHOPPING_CART_URL to the URL used to open the app}"
+    volumes:
+      - cart-data:/app/data
     ports:
       - "${SHOPPING_CART_PORT:-3030}:3000"
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+volumes:
+  cart-data:

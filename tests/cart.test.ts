@@ -81,8 +81,8 @@ test("chunked cookies round-trip Unicode; oversized updates retain previous data
   assert.deepEqual(readStore(), s);
   assert.ok(jar.has("jasc_1"));
   const tooLarge = structuredClone(s);
-  tooLarge.carts[0].products[0].image =
-    "https://example.com/" + "x".repeat(10000);
+  for (const product of tooLarge.carts[0].products)
+    product.image = "https://example.com/" + "x".repeat(1500);
   assert.throws(() => saveStore(tooLarge), /full/);
   assert.deepEqual(readStore(), s);
   jar.set("jasc_0", "%bad");
