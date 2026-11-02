@@ -9,6 +9,12 @@ export type Product = {
 };
 export type Cart = { id: string; name: string; products: Product[] };
 export type Store = { carts: Cart[]; active: string };
+// getRandomValues also works when the tool is opened over HTTP on a LAN.
+export function newId() {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+}
 export const shops = [
   "Auto-detect",
   "Amazon",

@@ -115,3 +115,20 @@ test("legacy labels are translated without changing user product names or totals
     3990,
   );
 });
+
+test("IDs work in a LAN HTTP context without crypto.randomUUID", async () => {
+  const { newId } = await import("../src/lib/cart.ts");
+  const original = Object.getOwnPropertyDescriptor(globalThis, "crypto");
+  const getRandomValues = crypto.getRandomValues.bind(crypto);
+  try {
+    Object.defineProperty(globalThis, "crypto", {
+      configurable: true,
+      value: { getRandomValues },
+    });
+    const ids = Array.from({ length: 100 }, () => newId());
+    assert.equal(new Set(ids).size, 100);
+    assert.ok(ids.every((id) => /^[0-9a-f]{32}$/.test(id)));
+  } finally {
+    if (original) Object.defineProperty(globalThis, "crypto", original);
+  }
+});

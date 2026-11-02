@@ -78,6 +78,7 @@ import {
   money,
   validStore,
   normalizeStore,
+  newId,
 } from "@/lib/cart";
 gsap.registerPlugin(useGSAP);
 const staticHost = process.env.NEXT_PUBLIC_STATIC_HOST === "true";
@@ -354,7 +355,7 @@ export default function Home() {
       return;
     }
     const product: Product = {
-      id: editing || crypto.randomUUID(),
+      id: editing || newId(),
       name: form.name.trim(),
       url: safeUrl(form.url),
       image: safeUrl(form.image),
@@ -398,7 +399,7 @@ export default function Home() {
         throw new Error("This file does not contain valid carts.");
       const carts = normalizeStore(next).carts.map((c) => ({
         ...c,
-        id: crypto.randomUUID(),
+        id: newId(),
       }));
       if (store.carts.length + carts.length > 12)
         throw new Error("You can have up to 12 carts.");
@@ -418,7 +419,7 @@ export default function Home() {
       setError("You can have up to 12 carts.");
       return;
     }
-    const id = crypto.randomUUID();
+    const id = newId();
     if (
       persist(
         cartDialog === "new"
