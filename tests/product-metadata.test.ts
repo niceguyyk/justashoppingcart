@@ -30,6 +30,24 @@ test("missing or non-EUR prices remain unknown, never zero", () => {
     ).price,
     null,
   );
+  assert.equal(
+    parseProduct(
+      '<meta property="og:title" content="UK product"><meta property="product:price:amount" content="29.99">',
+      "https://www.amazon.co.uk/item",
+    ).price,
+    null,
+  );
+});
+test("generic pages can provide itemprop details and US-formatted EUR prices", () => {
+  const product = parseProduct(
+    '<h1>Keyboard</h1><meta itemprop="image" content="/keyboard.png"><meta itemprop="priceCurrency" content="EUR"><meta itemprop="price" content="1,299.95">',
+    "https://shop.example.com/keyboard",
+  );
+  assert.deepEqual(product, {
+    name: "Keyboard",
+    image: "https://shop.example.com/keyboard.png",
+    price: 129995,
+  });
 });
 test("blocked shop responses and unsafe images are handled", () => {
   assert.throws(

@@ -69,6 +69,12 @@ test("moving to a full cart fails without removing the source product", () => {
 
 test("shop detection cannot be spoofed with a suffix", () => {
   assert.equal(shopFor("https://www.amazon.de/dp/test"), "Amazon");
+  assert.equal(shopFor("https://www.amazon.co.uk/dp/test"), "Amazon");
+  assert.equal(shopFor("https://www.amazon.com.au/dp/test"), "Amazon");
+  assert.equal(
+    shopFor("https://amazon.co.uk.attacker.example/item"),
+    "Custom link",
+  );
   assert.equal(
     shopFor("https://amazon.de.attacker.example/item"),
     "Custom link",

@@ -308,17 +308,13 @@ export default function Home() {
       );
       return;
     }
-    if (shop === "Custom link") {
-      setFormHint("Enter a name, price and optional image URL.");
-      return;
-    }
     if (staticHost) {
       setForm((f) => ({
         ...f,
         shop: shop === "Auto-detect" ? shopFor(url) : shop,
       }));
       setFormHint(
-        "Shop detected. Enter the name, image and price manually on GitHub Pages. Automatic import requires the server version.",
+        "Enter the name, image and EUR price manually on GitHub Pages. Automatic import requires the server version.",
       );
       return;
     }
@@ -1220,9 +1216,7 @@ export default function Home() {
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={
-                    staticHost || loading || form.shop === "Custom link"
-                  }
+                  disabled={staticHost || loading}
                   onClick={() => void lookup(form.url, form.shop)}
                 >
                   {loading ? (
@@ -1424,15 +1418,16 @@ export default function Home() {
               {staticHost
                 ? "Not available on GitHub Pages. Enter product details manually. In the server version: "
                 : ""}
-              Amazon.de/.com, Kleinanzeigen, eBay.de, OTTO and IKEA are
-              supported when the shop provides metadata and allows access. The
-              product URL is sent to our server and the shop. Prices are
-              snapshots, not live updates. Check the imported details.
+              Amazon domains, Kleinanzeigen, eBay, OTTO, IKEA and other public
+              HTTPS product pages are tried when they provide metadata and allow
+              access. The product URL is sent to our server and the shop. Only
+              clearly identified EUR prices are imported. Check all details
+              before saving.
             </p>
             <p>
-              <strong>Custom link:</strong> For any other shop, enter the name,
-              price and image yourself. Images are loaded from the image
-              provider you specify.
+              <strong>Custom link:</strong> We try to import its name, image and
+              EUR price. If the page blocks access or omits details, enter them
+              yourself. Images load from their provider.
             </p>
             <p>
               <strong>Cookie storage:</strong> Cookies have limited space. The

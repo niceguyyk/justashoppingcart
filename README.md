@@ -7,8 +7,8 @@ A small tool for collecting product links from different shops and calculating a
 - Create, rename, switch and delete multiple carts
 - Save and edit product URLs, names, image URLs, unit prices and quantities
 - Calculate EUR totals using integer cents
-- Import JSON-LD and Open Graph details from Amazon.de/.com, Kleinanzeigen, eBay.de, OTTO and IKEA when shops allow access
-- Add any other product URL manually
+- Import JSON-LD, Open Graph and itemprop details from Amazon country sites and other public HTTPS product pages when they allow access
+- Enter or correct any missing product details manually
 - Search, shop filters, sorting, grid and list views
 - Browser cookie storage with JSON backup export and import
 - Responsive UI and reduced-motion support
@@ -60,7 +60,7 @@ Carts are stored for up to a year in three browser cookies, with a total limit o
 
 Clearing cookies removes carts. There is no device sync; export backups regularly. Images load from their providers. Automatic import sends the submitted product URL to the app server and the shop.
 
-The importer only accesses HTTPS URLs on supported shop domains, checks each redirect, and bounds response size and time. It does not execute shop JavaScript, bypass captchas or log in to shops. Missing or non-EUR prices remain unknown. Prices are snapshots, excluding additional shipping, discounts and future changes.
+The importer only accesses public HTTPS URLs on the standard port, validates DNS addresses at connection time and checks each redirect. It bounds response size and time. It does not execute shop JavaScript, bypass captchas or log in to shops. Missing or non-EUR prices remain unknown; a foreign-currency price must be entered as EUR manually. Prices are snapshots, excluding additional shipping, discounts and future changes.
 
 ## Verification
 

@@ -26,23 +26,40 @@ export function parseProduct(html: string, url: string) {
     Array.isArray(product.offers) ? product.offers[0] : product.offers || {}
   ) as Record<string, unknown>;
   const spec = (offer.priceSpecification || {}) as Record<string, unknown>;
+  const inferredCurrency =
+    /\.(de|at|fr|it|es|nl|be|pt|ie|fi|gr|lu|ee|lv|lt|sk|si|hr|cy|mt)$/.test(
+      new URL(url).hostname,
+    )
+      ? "EUR"
+      : "";
   const currency = String(
     offer.priceCurrency ||
       spec.priceCurrency ||
       meta("product:price:currency", "og:price:currency") ||
-      "EUR",
-  );
+      $('[itemprop="priceCurrency"]').attr("content") ||
+      $('[itemprop="priceCurrency"]').text() ||
+      inferredCurrency,
+  ).toUpperCase();
   const rawPrice = String(
     offer.price ??
       offer.lowPrice ??
       spec.price ??
-      meta("product:price:amount", "og:price:amount"),
+      (meta("product:price:amount", "og:price:amount") ||
+        $('[itemprop="price"]').attr("content") ||
+        $('[itemprop="price"]').text()),
   );
-  const parsed = Number(
-    rawPrice.includes(",")
-      ? rawPrice.replace(/\./g, "").replace(",", ".")
-      : rawPrice,
-  );
+  const amount = rawPrice.trim();
+  const separator = Math.max(amount.lastIndexOf(","), amount.lastIndexOf("."));
+  const decimal = separator >= 0 && amount.length - separator - 1 <= 2;
+  const parsed = /^\d[\d.,]*$/.test(amount)
+    ? Number(
+        decimal
+          ? amount.slice(0, separator).replace(/[.,]/g, "") +
+              "." +
+              amount.slice(separator + 1)
+          : amount.replace(/[.,]/g, ""),
+      )
+    : NaN;
   const price =
     rawPrice &&
     Number.isFinite(parsed) &&
@@ -57,9 +74,17 @@ export function parseProduct(html: string, url: string) {
   const image =
     typeof rawImage === "string"
       ? rawImage
-      : rawImage?.url || meta("og:image", "twitter:image");
+      : rawImage?.url ||
+        meta("og:image", "og:image:secure_url", "twitter:image") ||
+        $('[itemprop="image"]').attr("content") ||
+        $('[itemprop="image"]').attr("src");
   const name = String(
-    product.name || meta("og:title", "twitter:title") || $("title").text(),
+    product.name ||
+      meta("og:title", "twitter:title") ||
+      $('[itemprop="name"]').attr("content") ||
+      $('[itemprop="name"]').first().text() ||
+      $("h1").first().text() ||
+      $("title").text(),
   )
     .trim()
     .slice(0, 180);

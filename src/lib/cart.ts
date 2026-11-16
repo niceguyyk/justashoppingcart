@@ -73,7 +73,9 @@ export function safeUrl(value: string) {
 export function shopFor(value: string) {
   try {
     const h = new URL(value).hostname;
-    return /(^|\.)amazon\.(de|com)$/.test(h)
+    return /(^|\.)amazon\.(de|com|co\.uk|fr|it|es|nl|se|pl|co\.jp|ca|com\.au|com\.br|com\.mx|ae|sa|sg|in)$/.test(
+      h,
+    )
       ? "Amazon"
       : /(^|\.)kleinanzeigen.de$/.test(h)
         ? "Kleinanzeigen"
