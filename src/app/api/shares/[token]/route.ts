@@ -1,5 +1,5 @@
-import { session, json, sameOrigin } from "@/lib/server/http";
-import { database, getShare, revokeShare } from "@/lib/server/database";
+import { session, json, sameOrigin, readJson } from "@/lib/server/http";
+import { database, getShare, revokeShare, saveSharedCart, StoreConflict } from "@/lib/server/database";
 type Context = { params: Promise<{ token: string }> };
 export async function GET(_request: Request, context: Context) {
   const { token } = await context.params;
@@ -7,6 +7,21 @@ export async function GET(_request: Request, context: Context) {
   return shared
     ? json(shared)
     : json({ error: "This link has expired or has been revoked." }, 404);
+}
+export async function PUT(request: Request, context: Context) {
+  try {
+    sameOrigin(request);
+  } catch {
+    return json({ error: "Invalid request origin." }, 403);
+  }
+  try {
+    const { token } = await context.params;
+    const body = (await readJson(request)) as Record<string, unknown>;
+    const saved = saveSharedCart(database(), token, body.cart as import("@/lib/cart").Cart, body.version as number);
+    return json(saved);
+  } catch (error) {
+    return json({ error: error instanceof Error ? error.message : "Could not save shared cart." }, error instanceof StoreConflict ? 409 : 400);
+  }
 }
 export async function DELETE(request: Request, context: Context) {
   try {

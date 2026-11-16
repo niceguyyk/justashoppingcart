@@ -12,10 +12,12 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { Copy, Link2, LoaderCircle, Share2, Trash2 } from "lucide-react";
-type Link = { token: string; createdAt: number; expiresAt: number };
+type Link = { token: string; createdAt: number; expiresAt: number; mode: "view" | "edit" };
 export function ShareDialog({
   open,
   onOpenChange,
@@ -37,6 +39,7 @@ export function ShareDialog({
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [origin, setOrigin] = useState("");
+  const [mode, setMode] = useState<"view" | "edit">("view");
   const input = useRef<HTMLInputElement>(null);
   function linkUrl(token: string) {
     return `${origin}/?share=${token}`;
@@ -73,7 +76,7 @@ export function ShareDialog({
       const response = await fetch("/api/shares", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cartId: cart.id }),
+        body: JSON.stringify({ cartId: cart.id, mode }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
@@ -136,9 +139,9 @@ export function ShareDialog({
         <DialogHeader>
           <DialogTitle>Share cart</DialogTitle>
           <DialogDescription>
-            Anyone with a link can view this cart. Changes you save appear in
-            the shared view automatically. Links expire after 30 days or when
-            you revoke them.
+            Create a live link for this cart. Choose whether people with the link
+            can only view it or can also edit it. Links expire after 30 days or
+            when you revoke them.
           </DialogDescription>
         </DialogHeader>
         {staticHost ? (
@@ -159,6 +162,16 @@ export function ShareDialog({
           </>
         ) : (
           <div className="flex flex-col gap-4">
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="share-permission">Link permission</FieldLabel>
+                <NativeSelect id="share-permission" value={mode} onChange={(event) => setMode(event.target.value as "view" | "edit") }>
+                  <NativeSelectOption value="view">View only</NativeSelectOption>
+                  <NativeSelectOption value="edit">Can edit</NativeSelectOption>
+                </NativeSelect>
+              </Field>
+            </FieldGroup>
+            {mode === "edit" && <Alert><AlertDescription>Anyone with this edit link can change products in this cart without signing in. Share it only with people you trust.</AlertDescription></Alert>}
             <Button
               disabled={busy || !cart.products.length}
               onClick={() => void create()}
@@ -177,6 +190,7 @@ export function ShareDialog({
               <FieldGroup>
                 <Field>
                   <FieldLabel htmlFor="share-link">Share link</FieldLabel>
+                  <Badge variant={selected.mode === "edit" ? "default" : "secondary"} className="w-fit">{selected.mode === "edit" ? "Can edit" : "View only"}</Badge>
                   <Input
                     ref={input}
                     id="share-link"
@@ -213,6 +227,7 @@ export function ShareDialog({
                   {links.map((link) => (
                     <div key={link.token} className="share-row">
                       <div className="min-w-0 flex-1">
+                        <Badge variant="outline">{link.mode === "edit" ? "Can edit" : "View only"}</Badge>
                         <span className="text-xs">
                           Created{" "}
                           {new Date(link.createdAt).toLocaleString("en-GB")}

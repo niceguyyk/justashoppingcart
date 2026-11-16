@@ -6,6 +6,8 @@ export type Product = {
   price: number;
   quantity: number;
   shop: string;
+  notes?: string;
+  status?: "planned" | "later" | "bought";
 };
 export type Cart = { id: string; name: string; products: Product[] };
 export type Store = { carts: Cart[]; active: string };
@@ -28,6 +30,27 @@ export const money = (cents: number) =>
   new Intl.NumberFormat("en-IE", { style: "currency", currency: "EUR" }).format(
     cents / 100,
   );
+export const productStatuses = ["planned", "later", "bought"] as const;
+export function productLinkKey(value: string) {
+  const safe = safeUrl(value);
+  if (!safe) return "";
+  const url = new URL(safe);
+  const amazonId = /(?:\/dp\/|\/gp\/product\/)([A-Z0-9]{10})(?:[/?]|$)/i.exec(url.pathname);
+  if (amazonId && shopFor(safe) === "Amazon")
+    return `${url.hostname.replace(/^www\./, "").replace(/^smile\./, "")}/dp/${amazonId[1].toUpperCase()}`;
+  url.hostname = url.hostname.replace(/^www\./, "");
+  url.hash = "";
+  url.pathname = url.pathname.replace(/\/+$/, "") || "/";
+  for (const key of [...url.searchParams.keys()])
+    if (/^(utm_.+|fbclid|gclid|msclkid|ref|ref_|tag|campaign|source)$/i.test(key))
+      url.searchParams.delete(key);
+  url.searchParams.sort();
+  return url.href;
+}
+export function findDuplicate(products: Product[], url: string, excludeId?: string) {
+  const key = productLinkKey(url);
+  return key ? products.find((product) => product.id !== excludeId && productLinkKey(product.url) === key) : undefined;
+}
 export function moveProductToCart(
   store: Store,
   sourceId: string,
@@ -113,6 +136,8 @@ export function normalizeStore(s: Store): Store {
         price: p.price,
         quantity: p.quantity,
         shop: p.shop === "Eigener Link" ? "Custom link" : p.shop,
+        ...(p.notes === undefined ? {} : { notes: p.notes }),
+        ...(p.status === undefined ? {} : { status: p.status }),
       })),
     })),
   };
@@ -160,7 +185,9 @@ export function validStore(value: unknown): value is Store {
               p.price <= 100000000 &&
               Number.isInteger(p.quantity) &&
               p.quantity >= 1 &&
-              p.quantity <= 999,
+              p.quantity <= 999 &&
+              (p.notes === undefined || (typeof p.notes === "string" && p.notes.length <= 500)) &&
+              (p.status === undefined || productStatuses.includes(p.status)),
           ),
       )
     );

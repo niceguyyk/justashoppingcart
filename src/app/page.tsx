@@ -47,6 +47,7 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   InputGroup,
   InputGroupInput,
@@ -90,6 +91,7 @@ import {
   normalizeStore,
   newId,
   moveProductToCart,
+  findDuplicate,
 } from "@/lib/cart";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { AccountDialog } from "@/components/cart/account-dialog";
@@ -105,6 +107,8 @@ const blank = {
   price: "",
   quantity: "1",
   shop: "Auto-detect",
+  notes: "",
+  status: "planned" as "planned" | "later" | "bought",
 };
 function ProductImage({ src, name }: { src: string; name: string }) {
   const [failed, setFailed] = useState(false);
@@ -172,11 +176,20 @@ export default function Home() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [sharedToken, setSharedToken] = useState("");
+  const [duplicate, setDuplicate] = useState<Product | null>(null);
+  const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
   useEffect(() => {
     if (!staticHost)
       // The initial URL is a browser-only value; read it after hydration.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSharedToken(new URL(location.href).searchParams.get("share") || "");
+    const add = new URLSearchParams(location.hash.slice(1)).get("add");
+    if (add && safeUrl(add)) {
+      history.replaceState(null, "", location.pathname + location.search);
+      openEditor();
+      setForm({ ...blank, url: add });
+      void lookup(add, "Auto-detect");
+    }
     return () => requestRef.current?.abort();
   }, []);
   const cart = store.carts.find((c) => c.id === store.active) || store.carts[0];
@@ -288,6 +301,8 @@ export default function Home() {
             ...product,
             price: (product.price / 100).toFixed(2),
             quantity: String(product.quantity),
+            notes: product.notes || "",
+            status: product.status || "planned",
           }
         : { ...blank, shop: preset },
     );
@@ -389,7 +404,18 @@ export default function Home() {
       price: Math.round(price * 100),
       quantity,
       shop: form.shop === "Auto-detect" ? shopFor(form.url) : form.shop,
+      notes: form.notes.trim(),
+      status: form.status,
     };
+    const match = !editing && findDuplicate(cart.products, product.url);
+    if (match) {
+      setDuplicate(match);
+      setPendingProduct(product);
+      return;
+    }
+    commitProduct(product);
+  }
+  function commitProduct(product: Product) {
     if (
       products(
         editing
@@ -400,6 +426,8 @@ export default function Home() {
     ) {
       setEditor(false);
       setLink("");
+      setDuplicate(null);
+      setPendingProduct(null);
     } else {
       setFormError(
         user
@@ -991,6 +1019,8 @@ export default function Home() {
                         <CardDescription className="truncate">
                           {new URL(p.url).hostname.replace("www.", "")}
                         </CardDescription>
+                        {p.status && p.status !== "planned" && <Badge variant="outline" className="w-fit">{p.status === "later" ? "For later" : "Bought"}</Badge>}
+                        {p.notes && <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words">{p.notes}</p>}
                       </CardHeader>
                       <CardContent className="product-price">
                         <strong>{money(p.price * p.quantity)}</strong>
@@ -1155,6 +1185,10 @@ export default function Home() {
               <Cookie data-icon="inline-start" />
               Storage & help
             </Button>
+            <Button variant="ghost" size="sm" nativeButton={false} render={<a href={`${basePath}/extension/`} />}>
+              <ArrowDownToLine data-icon="inline-start" />
+              Browser extension
+            </Button>
             <span>
               just a shopping cart<span className="text-primary">.</span>
             </span>
@@ -1290,6 +1324,18 @@ export default function Home() {
                   placeholder="https://…/product.jpg"
                 />
               </Field>
+              <Field>
+                <FieldLabel htmlFor="product-status">Status</FieldLabel>
+                <NativeSelect id="product-status" value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as "planned" | "later" | "bought" })}>
+                  <NativeSelectOption value="planned">Planned</NativeSelectOption>
+                  <NativeSelectOption value="later">For later</NativeSelectOption>
+                  <NativeSelectOption value="bought">Bought</NativeSelectOption>
+                </NativeSelect>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="product-notes">Notes (optional)</FieldLabel>
+                <Textarea id="product-notes" maxLength={500} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} placeholder="Size, condition, seller, or anything to remember" />
+              </Field>
             </FieldGroup>
             {(formError || formHint) && (
               <Alert variant={formError ? "destructive" : "default"}>
@@ -1316,6 +1362,24 @@ export default function Home() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!duplicate} onOpenChange={(open) => { if (!open) { setDuplicate(null); setPendingProduct(null); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Product already in this cart</DialogTitle>
+            <DialogDescription>“{duplicate?.name}” uses the same product link. Increase its quantity or add a separate entry?</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-wrap">
+            <Button variant="outline" onClick={() => { setDuplicate(null); setPendingProduct(null); }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { if (pendingProduct) commitProduct(pendingProduct); }}>Add separately</Button>
+            <Button disabled={!duplicate || !pendingProduct || duplicate.quantity + pendingProduct.quantity > 999} onClick={() => {
+              if (!duplicate || !pendingProduct) return;
+              if (products(cart.products.map((item) => item.id === duplicate.id ? { ...item, quantity: item.quantity + pendingProduct.quantity } : item), "Quantity increased.")) {
+                setDuplicate(null); setPendingProduct(null); setEditor(false); setLink("");
+              }
+            }}>Increase quantity</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
       <Dialog
@@ -1435,10 +1499,15 @@ export default function Home() {
               space. Export backups regularly.
             </p>
             <p>
-              <strong>Sharing:</strong> Sign in to create read-only snapshot
-              links. Anyone with a link can view it without an account. Links
-              expire after 30 days, and you can revoke them. Deleting the
-              original cart revokes its links.
+              <strong>Sharing:</strong> Sign in to create live view-only or edit
+              links. Anyone with an edit link can change that cart without an
+              account. Links expire after 30 days and can be revoked. Deleting
+              a cart revokes its links.
+            </p>
+            <p>
+              <strong>Browser extension:</strong> Add the current product page
+              from Chrome, Edge or Firefox. The import form opens so you can
+              check details before saving. <a className="underline" href={`${basePath}/extension/`}>Get the browser extension</a>.
             </p>
             <p>
               <strong>Total:</strong> All prices are in euros. Totals include

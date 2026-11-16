@@ -21,9 +21,10 @@ export async function POST(request: Request) {
   if (!current) return json({ error: "Sign in to share a cart." }, 401);
   try {
     const body = (await readJson(request, 4096)) as Record<string, unknown>;
-    if (typeof body.cartId !== "string" || body.cartId.length > 128)
+    const mode = body.mode === undefined ? "view" : body.mode;
+    if (typeof body.cartId !== "string" || body.cartId.length > 128 || !["view", "edit"].includes(String(mode)))
       return json({ error: "Invalid cart." }, 400);
-    return json(createShare(database(), current.user.id, body.cartId), 201);
+    return json(createShare(database(), current.user.id, body.cartId, mode as "view" | "edit"), 201);
   } catch (error) {
     return json(
       {

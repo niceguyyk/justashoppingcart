@@ -80,6 +80,25 @@ export function useWorkspace(staticHost: boolean) {
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [user, status]);
+  useEffect(() => {
+    if (!user || status !== "saved") return;
+    let active = true;
+    const check = async () => {
+      if (document.visibilityState !== "visible" || pending.current || running.current) return;
+      try {
+        const response = await fetch("/api/account", { cache: "no-store" });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (active && !pending.current && !running.current && data.user?.id === user.id && Number.isSafeInteger(data.version) && data.version > version.current && validStore(data.store)) {
+          version.current = data.version;
+          setStore(normalizeStore(data.store));
+        }
+      } catch { /* The next refresh can retry. */ }
+    };
+    const interval = window.setInterval(() => void check(), 10000);
+    document.addEventListener("visibilitychange", check);
+    return () => { active = false; window.clearInterval(interval); document.removeEventListener("visibilitychange", check); };
+  }, [user, status]);
   async function pump() {
     if (running.current || !userRef.current) return;
     running.current = true;

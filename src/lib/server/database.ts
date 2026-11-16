@@ -2,7 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
-import { emptyStore, normalizeStore, validStore, type Store } from "../cart.ts";
+import { emptyStore, normalizeStore, validStore, type Cart, type Store } from "../cart.ts";
 
 export class StoreConflict extends Error {}
 export function openDatabase(directory: string) {
@@ -12,6 +12,15 @@ export function openDatabase(directory: string) {
     CREATE TABLE IF NOT EXISTS cart_workspace (user_id TEXT PRIMARY KEY, content TEXT NOT NULL, version INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS cart_share (token TEXT PRIMARY KEY, owner_id TEXT NOT NULL, cart_id TEXT NOT NULL, content TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL);
     CREATE INDEX IF NOT EXISTS cart_share_owner ON cart_share(owner_id, cart_id);`);
+  const columns = db.prepare("PRAGMA table_info(cart_share)").all() as { name: string }[];
+  if (!columns.some((column) => column.name === "mode")) {
+    try {
+      db.exec("ALTER TABLE cart_share ADD COLUMN mode TEXT NOT NULL DEFAULT 'view'");
+    } catch (error) {
+      const current = db.prepare("PRAGMA table_info(cart_share)").all() as { name: string }[];
+      if (!current.some((column) => column.name === "mode")) throw error;
+    }
+  }
   return db;
 }
 const runtime = globalThis as typeof globalThis & {
@@ -85,7 +94,9 @@ export function saveWorkspace(
     throw error;
   }
 }
-export function createShare(db: DatabaseSync, userId: string, cartId: string) {
+export type ShareMode = "view" | "edit";
+export function createShare(db: DatabaseSync, userId: string, cartId: string, mode: ShareMode = "view") {
+  if (mode !== "view" && mode !== "edit") throw new Error("Invalid link permission.");
   const { store } = loadWorkspace(db, userId);
   const cart = store.carts.find((c) => c.id === cartId);
   if (!cart || !cart.products.length)
@@ -99,25 +110,27 @@ export function createShare(db: DatabaseSync, userId: string, cartId: string) {
     throw new Error("You have 50 active links. Revoke an older link first.");
   const token = randomBytes(24).toString("hex");
   const expiresAt = now + 30 * 86400000;
-  db.prepare("INSERT INTO cart_share VALUES(?,?,?,?,?,?)").run(
+  db.prepare("INSERT INTO cart_share(token,owner_id,cart_id,content,created_at,expires_at,mode) VALUES(?,?,?,?,?,?,?)").run(
     token,
     userId,
     cartId,
     JSON.stringify(cart),
     now,
     expiresAt,
+    mode,
   );
-  return { token, createdAt: now, expiresAt };
+  return { token, createdAt: now, expiresAt, mode };
 }
 export function getShare(db: DatabaseSync, token: string) {
   if (!/^[a-f0-9]{48}$/.test(token)) return null;
   const row = db
     .prepare(
-      "SELECT s.cart_id,s.created_at,s.expires_at,w.content,w.version FROM cart_share s JOIN cart_workspace w ON w.user_id=s.owner_id WHERE s.token=? AND s.expires_at>?",
+      "SELECT s.cart_id,s.mode,s.created_at,s.expires_at,w.content,w.version FROM cart_share s JOIN cart_workspace w ON w.user_id=s.owner_id WHERE s.token=? AND s.expires_at>?",
     )
     .get(token, Date.now()) as
     | {
         cart_id: string;
+        mode: ShareMode;
         created_at: number;
         expires_at: number;
         content: string;
@@ -134,13 +147,40 @@ export function getShare(db: DatabaseSync, token: string) {
         createdAt: row.created_at,
         expiresAt: row.expires_at,
         version: row.version,
+        mode: row.mode,
       }
     : null;
+}
+export function saveSharedCart(db: DatabaseSync, token: string, cart: Cart, version: number) {
+  if (!/^[a-f0-9]{48}$/.test(token) || !Number.isSafeInteger(version) || version < 0)
+    throw new Error("Invalid shared cart.");
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const row = db.prepare(
+      "SELECT s.cart_id,s.owner_id,w.content,w.version FROM cart_share s JOIN cart_workspace w ON w.user_id=s.owner_id WHERE s.token=? AND s.mode='edit' AND s.expires_at>?",
+    ).get(token, Date.now()) as { cart_id: string; owner_id: string; content: string; version: number } | undefined;
+    if (!row) throw new Error("This edit link has expired or has been revoked.");
+    if (row.version !== version) throw new StoreConflict("This cart changed elsewhere. Reload it before saving.");
+    const store = JSON.parse(row.content) as Store;
+    if (cart.id !== row.cart_id || !store.carts.some((item) => item.id === row.cart_id))
+      throw new Error("Invalid shared cart.");
+    const next = { ...store, carts: store.carts.map((item) => item.id === row.cart_id ? cart : item) };
+    if (!validStore(next)) throw new Error("Invalid cart data.");
+    const content = JSON.stringify(normalizeStore(next));
+    if (Buffer.byteLength(content) > 1_000_000) throw new Error("Account storage limit reached.");
+    db.prepare("UPDATE cart_workspace SET content=?,version=? WHERE user_id=?")
+      .run(content, version + 1, row.owner_id);
+    db.exec("COMMIT");
+    return { cart: normalizeStore(next).carts.find((item) => item.id === row.cart_id)!, version: version + 1 };
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 }
 export function listShares(db: DatabaseSync, userId: string, cartId: string) {
   return db
     .prepare(
-      "SELECT token,created_at AS createdAt,expires_at AS expiresAt FROM cart_share WHERE owner_id=? AND cart_id=? AND expires_at>? ORDER BY created_at DESC LIMIT 50",
+      "SELECT token,mode,created_at AS createdAt,expires_at AS expiresAt FROM cart_share WHERE owner_id=? AND cart_id=? AND expires_at>? ORDER BY created_at DESC LIMIT 50",
     )
     .all(userId, cartId, Date.now());
 }

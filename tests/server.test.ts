@@ -3,11 +3,13 @@ import { test } from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import {
   openDatabase,
   loadWorkspace,
   saveWorkspace,
   createShare,
+  saveSharedCart,
   getShare,
   revokeShare,
   listShares,
@@ -49,6 +51,42 @@ test("account isolation, optimistic concurrency and persistent restart", () => {
     db.close();
     rmSync(path, { recursive: true, force: true });
   }
+});
+
+test("edit links update only their cart and reject stale, revoked and view-only writes", () => {
+  const path = mkdtempSync(join(tmpdir(), "shopping-cart-collab-"));
+  const db = openDatabase(path);
+  try {
+    const store = emptyStore();
+    store.carts[0].products.push({ id: "a", name: "Original", url: "https://example.com/a", image: "", price: 1200, quantity: 1, shop: "Custom link" });
+    store.carts.push({ id: "private", name: "Private", products: [] });
+    saveWorkspace(db, "owner", store, 0);
+    const view = createShare(db, "owner", store.active);
+    const edit = createShare(db, "owner", store.active, "edit");
+    assert.equal(getShare(db, view.token)?.mode, "view");
+    assert.equal(getShare(db, edit.token)?.mode, "edit");
+    const changed = { ...store.carts[0], products: [{ ...store.carts[0].products[0], notes: "Together", status: "bought" as const }] };
+    assert.throws(() => saveSharedCart(db, view.token, changed, 1));
+    assert.equal(saveSharedCart(db, edit.token, changed, 1).version, 2);
+    assert.equal(getShare(db, view.token)?.cart.products[0].notes, "Together");
+    assert.equal(loadWorkspace(db, "owner").store.carts[1].name, "Private");
+    assert.throws(() => saveSharedCart(db, edit.token, changed, 1), StoreConflict);
+    revokeShare(db, "owner", edit.token);
+    assert.throws(() => saveSharedCart(db, edit.token, changed, 2));
+  } finally { db.close(); rmSync(path, { recursive: true, force: true }); }
+});
+
+test("existing share tables gain view-only permission without losing links", () => {
+  const path = mkdtempSync(join(tmpdir(), "shopping-cart-migrate-"));
+  const legacy = new DatabaseSync(join(path, "shopping-cart.sqlite"));
+  legacy.exec("CREATE TABLE cart_share (token TEXT PRIMARY KEY, owner_id TEXT NOT NULL, cart_id TEXT NOT NULL, content TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL)");
+  legacy.prepare("INSERT INTO cart_share VALUES(?,?,?,?,?,?)").run("a".repeat(48), "owner", "cart", "{}", 1, Date.now() + 10000);
+  legacy.close();
+  const db = openDatabase(path);
+  try {
+    const row = db.prepare("SELECT mode FROM cart_share WHERE token=?").get("a".repeat(48)) as { mode: string };
+    assert.equal(row.mode, "view");
+  } finally { db.close(); rmSync(path, { recursive: true, force: true }); }
 });
 test("share links follow the saved cart, remain owner-controlled, revocable and expiring", () => {
   const path = mkdtempSync(join(tmpdir(), "shopping-cart-share-"));

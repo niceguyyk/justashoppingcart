@@ -9,7 +9,19 @@ import {
   safeUrl,
   validStore,
   moveProductToCart,
+  findDuplicate,
+  productLinkKey,
 } from "../src/lib/cart.ts";
+
+test("product notes and statuses validate, while duplicate links ignore tracking details", () => {
+  const store = emptyStore();
+  store.carts[0].products.push({ id: "a", name: "Item", url: "https://www.amazon.co.uk/dp/B012345678?tag=abc", image: "", price: 1000, quantity: 1, shop: "Amazon", notes: "Check size", status: "later" });
+  assert.equal(validStore(store), true);
+  assert.equal(productLinkKey("https://amazon.co.uk/gp/product/B012345678?ref=foo"), "amazon.co.uk/dp/B012345678");
+  assert.equal(findDuplicate(store.carts[0].products, "https://amazon.co.uk/gp/product/B012345678?ref=foo")?.id, "a");
+  store.carts[0].products[0].notes = "x".repeat(501);
+  assert.equal(validStore(store), false);
+});
 
 test("moving a product transfers its full quantity and price without changing other carts", () => {
   const store = emptyStore();

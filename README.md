@@ -6,12 +6,15 @@ A small tool for collecting product links from different shops and calculating a
 
 - Create, rename, switch and delete multiple carts
 - Save and edit product URLs, names, image URLs, unit prices and quantities
+- Add notes and a planned, for-later or bought status to products
+- Detect duplicate links and increase quantity or keep a separate entry
 - Calculate EUR totals using integer cents
 - Import JSON-LD, Open Graph and itemprop details from Amazon country sites and other public HTTPS product pages when they allow access
 - Enter or correct any missing product details manually
 - Search, shop filters, sorting, grid and list views
 - Browser cookie storage with JSON backup export and import
 - Responsive UI and reduced-motion support
+- Send the current product page from Chrome, Edge or Firefox with the extension in `extension/`
 
 ## Local development
 
@@ -58,7 +61,7 @@ GitHub Pages cannot run server-side import. In that version, product details are
 
 Carts are stored for up to a year in three browser cookies, with a total limit of 9,000 URL-encoded characters. Actual capacity depends on the length of product and image URLs. Oversized updates are rejected before writing. The app allows up to 12 carts and 100 products per cart within the cookie limit.
 
-Clearing cookies removes carts. There is no device sync; export backups regularly. Images load from their providers. Automatic import sends the submitted product URL to the app server and the shop.
+Clearing cookies removes browser-only carts. Browser-only carts do not sync between devices; signed-in carts do. Export backups regularly. Images load from their providers. Automatic import sends the submitted product URL to the app server and the shop.
 
 The importer only accesses public HTTPS URLs on the standard port, validates DNS addresses at connection time and checks each redirect. It bounds response size and time. It does not execute shop JavaScript, bypass captchas or log in to shops. Missing or non-EUR prices remain unknown; a foreign-currency price must be entered as EUR manually. Prices are snapshots, excluding additional shipping, discounts and future changes.
 
@@ -76,6 +79,8 @@ The named Docker volume `justashoppingcart_cart-data` stores the SQLite database
 
 Passwords are hashed by Better Auth. Session cookies are HTTP-only, same-site and secure when the configured URL uses HTTPS. Email sending, verification email and password-reset email are not configured. Account data is scoped to the authenticated user; guest mode only uses browser cookies.
 
-To share a saved cart, sign in, press **Share**, and create a link. Links contain unguessable tokens, show the owner's latest saved cart in a read-only view, and expire in 30 days. The shared page checks for updates every 10 seconds while open. Anyone with the link can view it without signing in, or copy its current contents into their own carts. Owners can revoke links. Deleting a cart revokes its links. A user can have up to 50 active links. Set `SHOPPING_CART_URL` to the public HTTPS address when using a reverse proxy.
+To share a saved cart, sign in, press **Share**, choose **View only** or **Can edit**, and create a link. Links contain unguessable tokens, follow the owner's latest saved cart, and expire in 30 days. The shared page checks for updates every 10 seconds while open. Anyone with an edit link can add, edit and remove products without signing in; treat that link as a password and revoke it if needed. Concurrent edits use version checks and reject stale saves. Owners can revoke links. Deleting a cart revokes its links. A user can have up to 50 active links. Set `SHOPPING_CART_URL` to the public HTTPS address when using a reverse proxy.
+
+Downloadable extension source is packaged at `public/extension/justashoppingcart-extension.zip`; see `extension/README.md` for Chrome, Edge and Firefox installation. The extension opens the app with a product URL, so the user can review imported details before saving. It requires no shop-wide permissions.
 
 GitHub Pages remains browser-only; accounts, share-link creation and product import require the server version.
