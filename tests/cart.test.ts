@@ -8,7 +8,64 @@ import {
   shopFor,
   safeUrl,
   validStore,
+  moveProductToCart,
 } from "../src/lib/cart.ts";
+
+test("moving a product transfers its full quantity and price without changing other carts", () => {
+  const store = emptyStore();
+  const source = store.carts[0];
+  const target = {
+    id: "target",
+    name: "Other cart",
+    products: [] as typeof source.products,
+  };
+  store.carts.push(target);
+  source.products.push({
+    id: "product",
+    name: "Test item",
+    url: "https://example.com/item",
+    image: "",
+    price: 1299,
+    quantity: 3,
+    shop: "Custom link",
+  });
+  const next = moveProductToCart(store, source.id, "product", target.id);
+  assert.equal(source.products.length, 1);
+  assert.equal(next.carts[0].products.length, 0);
+  assert.deepEqual(next.carts[1].products[0], source.products[0]);
+  assert.equal(
+    next.carts[1].products[0].price * next.carts[1].products[0].quantity,
+    3897,
+  );
+  assert.equal(validStore(next), true);
+});
+
+test("moving to a full cart fails without removing the source product", () => {
+  const store = emptyStore();
+  const source = store.carts[0];
+  source.products.push({
+    id: "product",
+    name: "Test item",
+    url: "https://example.com/item",
+    image: "",
+    price: 100,
+    quantity: 1,
+    shop: "Custom link",
+  });
+  store.carts.push({
+    id: "full",
+    name: "Full cart",
+    products: Array.from({ length: 100 }, (_, i) => ({
+      ...source.products[0],
+      id: `p${i}`,
+    })),
+  });
+  assert.throws(
+    () => moveProductToCart(store, source.id, "product", "full"),
+    /100 products/,
+  );
+  assert.equal(source.products.length, 1);
+});
 
 test("shop detection cannot be spoofed with a suffix", () => {
   assert.equal(shopFor("https://www.amazon.de/dp/test"), "Amazon");

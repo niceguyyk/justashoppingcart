@@ -28,6 +28,36 @@ export const money = (cents: number) =>
   new Intl.NumberFormat("en-IE", { style: "currency", currency: "EUR" }).format(
     cents / 100,
   );
+export function moveProductToCart(
+  store: Store,
+  sourceId: string,
+  productId: string,
+  targetId: string,
+): Store {
+  if (sourceId === targetId) throw new Error("Choose another cart.");
+  const source = store.carts.find((cart) => cart.id === sourceId);
+  const target = store.carts.find((cart) => cart.id === targetId);
+  const product = source?.products.find((item) => item.id === productId);
+  if (!source || !target || !product)
+    throw new Error("This product or cart is no longer available.");
+  if (target.products.length >= 100)
+    throw new Error("The destination cart already has 100 products.");
+  let id = product.id;
+  while (target.products.some((item) => item.id === id)) id = newId();
+  return {
+    ...store,
+    carts: store.carts.map((cart) =>
+      cart.id === sourceId
+        ? {
+            ...cart,
+            products: cart.products.filter((item) => item.id !== productId),
+          }
+        : cart.id === targetId
+          ? { ...cart, products: [{ ...product, id }, ...cart.products] }
+          : cart,
+    ),
+  };
+}
 export function safeUrl(value: string) {
   try {
     const u = new URL(value);
@@ -182,4 +212,3 @@ export function saveStore(s: Store) {
       "Could not save cookies. Please allow cookies for this website.",
     );
 }
-

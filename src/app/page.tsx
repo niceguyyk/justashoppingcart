@@ -15,6 +15,7 @@ import {
   List,
   LoaderCircle,
   Minus,
+  MoveRight,
   Pencil,
   Plus,
   Search,
@@ -57,6 +58,14 @@ import {
 } from "@/components/ui/native-select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -80,6 +89,7 @@ import {
   validStore,
   normalizeStore,
   newId,
+  moveProductToCart,
 } from "@/lib/cart";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { AccountDialog } from "@/components/cart/account-dialog";
@@ -164,6 +174,8 @@ export default function Home() {
   const [sharedToken, setSharedToken] = useState("");
   useEffect(() => {
     if (!staticHost)
+      // The initial URL is a browser-only value; read it after hydration.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSharedToken(new URL(location.href).searchParams.get("share") || "");
     return () => requestRef.current?.abort();
   }, []);
@@ -251,6 +263,18 @@ export default function Home() {
         item.id === p.id ? { ...item, quantity } : item,
       ),
     );
+  }
+  function transferProduct(product: Product, targetId: string) {
+    try {
+      const target = store.carts.find((candidate) => candidate.id === targetId);
+      if (!target) return;
+      persist(
+        moveProductToCart(store, cart.id, product.id, targetId),
+        `Moved “${product.name}” to “${target.name}”.`,
+      );
+    } catch (error) {
+      setError((error as Error).message);
+    }
   }
   function openEditor(product?: Product) {
     requestRef.current?.abort();
@@ -998,19 +1022,71 @@ export default function Home() {
                             <Plus />
                           </Button>
                         </div>
-                        <Button
-                          size="icon-sm"
-                          variant="ghost"
-                          aria-label={`${p.name} remove`}
-                          onClick={() =>
-                            products(
-                              cart.products.filter((item) => item.id !== p.id),
-                              "Product removed.",
-                            )
-                          }
-                        >
-                          <Trash2 />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger
+                              render={
+                                <Button
+                                  size="icon-sm"
+                                  variant="ghost"
+                                  aria-label={`${p.name} move to another cart`}
+                                />
+                              }
+                            >
+                              <MoveRight />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                              align="end"
+                              className="min-w-40"
+                            >
+                              <DropdownMenuGroup>
+                                <DropdownMenuLabel>
+                                  Move to cart
+                                </DropdownMenuLabel>
+                                {store.carts.filter(
+                                  (candidate) => candidate.id !== cart.id,
+                                ).length ? (
+                                  store.carts
+                                    .filter(
+                                      (candidate) => candidate.id !== cart.id,
+                                    )
+                                    .map((candidate) => (
+                                      <DropdownMenuItem
+                                        key={candidate.id}
+                                        disabled={
+                                          candidate.products.length >= 100
+                                        }
+                                        onClick={() =>
+                                          transferProduct(p, candidate.id)
+                                        }
+                                      >
+                                        {candidate.name}
+                                      </DropdownMenuItem>
+                                    ))
+                                ) : (
+                                  <DropdownMenuItem disabled>
+                                    Create another cart first
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuGroup>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                          <Button
+                            size="icon-sm"
+                            variant="ghost"
+                            aria-label={`${p.name} remove`}
+                            onClick={() =>
+                              products(
+                                cart.products.filter(
+                                  (item) => item.id !== p.id,
+                                ),
+                                "Product removed.",
+                              )
+                            }
+                          >
+                            <Trash2 />
+                          </Button>
+                        </div>
                       </CardFooter>
                     </Card>
                   ))}
