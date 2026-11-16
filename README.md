@@ -76,7 +76,6 @@ The named Docker volume `justashoppingcart_cart-data` stores the SQLite database
 
 Passwords are hashed by Better Auth. Session cookies are HTTP-only, same-site and secure when the configured URL uses HTTPS. Email sending, verification email and password-reset email are not configured. Account data is scoped to the authenticated user; guest mode only uses browser cookies.
 
-To share a saved cart, sign in, press **Share**, and create a link. Links contain unguessable tokens, show an immutable read-only snapshot, and expire in 30 days. Anyone who can reach the server and has the link can view it without signing in, or copy it into their own carts. Owners can revoke links. Deleting a cart revokes its links. A user can have up to 50 active links. The current LAN address is only reachable from the same network; sharing across the internet requires a reachable HTTPS deployment URL.
+To share a saved cart, sign in, press **Share**, and create a link. Links contain unguessable tokens, show the owner's latest saved cart in a read-only view, and expire in 30 days. The shared page checks for updates every 10 seconds while open. Anyone with the link can view it without signing in, or copy its current contents into their own carts. Owners can revoke links. Deleting a cart revokes its links. A user can have up to 50 active links. Set `SHOPPING_CART_URL` to the public HTTPS address when using a reverse proxy.
 
 GitHub Pages remains browser-only; accounts, share-link creation and product import require the server version.
-

@@ -136,8 +136,9 @@ export function ShareDialog({
         <DialogHeader>
           <DialogTitle>Share cart</DialogTitle>
           <DialogDescription>
-            Anyone with a link can view a read-only snapshot. Later edits stay
-            private. Links expire after 30 days or when you revoke them.
+            Anyone with a link can view this cart. Changes you save appear in
+            the shared view automatically. Links expire after 30 days or when
+            you revoke them.
           </DialogDescription>
         </DialogHeader>
         {staticHost ? (

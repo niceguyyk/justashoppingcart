@@ -50,7 +50,7 @@ test("account isolation, optimistic concurrency and persistent restart", () => {
     rmSync(path, { recursive: true, force: true });
   }
 });
-test("share snapshots are immutable, private to their owner for management, revocable and expiring", () => {
+test("share links follow the saved cart, remain owner-controlled, revocable and expiring", () => {
   const path = mkdtempSync(join(tmpdir(), "shopping-cart-share-"));
   const db = openDatabase(path);
   try {
@@ -70,7 +70,8 @@ test("share snapshots are immutable, private to their owner for management, revo
     assert.equal(listShares(db, "other-user", store.active).length, 0);
     store.carts[0].products[0].name = "Changed";
     saveWorkspace(db, "owner", store, 1);
-    assert.equal(getShare(db, share.token)?.cart.products[0].name, "Original");
+    assert.equal(getShare(db, share.token)?.cart.products[0].name, "Changed");
+    assert.equal(getShare(db, share.token)?.version, 2);
     assert.equal(revokeShare(db, "other-user", share.token), false);
     assert.ok(getShare(db, share.token));
     assert.equal(revokeShare(db, "owner", share.token), true);

@@ -30,31 +30,45 @@ export function SharedCartView({
     cart: Cart;
     createdAt: number;
     expiresAt: number;
+    version: number;
   } | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
     setError("");
     setData(null);
     const controller = new AbortController();
-    fetch(`/api/shares/${encodeURIComponent(token)}`, {
-      cache: "no-store",
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        const value = await response.json();
-        if (!response.ok)
-          throw new Error(value.error || "Could not open this link.");
-        if (
-          !value.cart ||
-          !validStore({ carts: [value.cart], active: value.cart.id })
-        )
-          throw new Error("Invalid shared cart.");
-        setData(value);
+    const refresh = () =>
+      fetch(`/api/shares/${encodeURIComponent(token)}`, {
+        cache: "no-store",
+        signal: controller.signal,
       })
-      .catch((error) => {
-        if (!controller.signal.aborted) setError(error.message);
-      });
-    return () => controller.abort();
+        .then(async (response) => {
+          const value = await response.json();
+          if (!response.ok)
+            throw new Error(value.error || "Could not open this link.");
+          if (
+            !value.cart ||
+            !validStore({ carts: [value.cart], active: value.cart.id })
+          )
+            throw new Error("Invalid shared cart.");
+          if (!controller.signal.aborted) setData(value);
+        })
+        .catch((error) => {
+          if (!controller.signal.aborted) setError(error.message);
+        });
+    void refresh();
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") void refresh();
+    }, 10000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+      controller.abort();
+    };
   }, [token]);
   return (
     <main className="shared-page">
@@ -83,14 +97,13 @@ export function SharedCartView({
           <Card>
             <CardHeader>
               <Badge variant="secondary" className="mb-2 w-fit">
-                Read-only snapshot
+                Live shared cart
               </Badge>
               <CardTitle>
                 <h1>{data.cart.name}</h1>
               </CardTitle>
               <CardDescription>
-                Shared {new Date(data.createdAt).toLocaleDateString("en-GB")}.
-                This link expires{" "}
+                Updates automatically as the owner saves changes. Link expires{" "}
                 {new Date(data.expiresAt).toLocaleDateString("en-GB")}.
               </CardDescription>
             </CardHeader>
@@ -99,7 +112,9 @@ export function SharedCartView({
                 <span>
                   {data.cart.products.reduce((sum, p) => sum + p.quantity, 0)}{" "}
                   items · {new Set(data.cart.products.map((p) => p.shop)).size}{" "}
-                  shops
+                  {new Set(data.cart.products.map((p) => p.shop)).size === 1
+                    ? "shop"
+                    : "shops"}
                 </span>
                 <strong className="shared-total">
                   {money(
@@ -113,7 +128,7 @@ export function SharedCartView({
             </CardContent>
             <CardFooter className="flex-wrap justify-between gap-3">
               <span className="text-xs text-muted-foreground">
-                Excludes additional shipping. Prices are saved snapshots.
+                Excludes additional shipping. Prices reflect the saved cart.
               </span>
               <Button disabled={!ready} onClick={() => onCopy(data.cart)}>
                 <Copy data-icon="inline-start" />
@@ -123,7 +138,7 @@ export function SharedCartView({
           </Card>
           <div className="shared-products">
             {data.cart.products.map((product) => (
-              <Card key={product.id}>
+              <Card key={product.id} className="shared-product-card gap-0 py-0">
                 <div className="shared-image">
                   {product.image ? (
                     <img
@@ -139,7 +154,7 @@ export function SharedCartView({
                     <ShoppingBag className="size-10 text-muted-foreground" />
                   )}
                 </div>
-                <CardHeader>
+                <CardHeader className="gap-2 py-4">
                   <CardTitle>
                     <a
                       href={product.url}
@@ -153,7 +168,7 @@ export function SharedCartView({
                   </CardTitle>
                   <CardDescription>{product.shop}</CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="pb-4">
                   <strong>{money(product.price * product.quantity)}</strong>
                   <p className="text-xs text-muted-foreground">
                     {product.quantity} × {money(product.price)}

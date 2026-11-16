@@ -1168,15 +1168,42 @@ h1 {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 18px;
+  align-items: stretch;
+}
+.shared-product-card {
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.shared-product-card [data-slot="card-header"],
+.shared-product-card [data-slot="card-content"] {
+  position: relative;
+  min-width: 0;
+  background: var(--card);
+}
+.shared-product-card [data-slot="card-header"] {
+  padding-top: 16px;
+}
+.shared-product-card [data-slot="card-content"] {
+  margin-top: auto;
+}
+.shared-product-card [data-slot="card-footer"] {
+  margin-top: 0;
 }
 .shared-image {
-  display: grid;
-  place-items: center;
-  height: 180px;
-  background: var(--muted);
-  margin-top: calc(-1 * var(--card-spacing));
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 205px;
+  flex: none;
+  overflow: hidden;
+  background: #f4f4f4;
+  color: #555;
 }
 .shared-image img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -1188,6 +1215,13 @@ h1 {
 }
 .shared-products [data-slot="card-title"] {
   overflow-wrap: anywhere;
+}
+.shared-products [data-slot="card-title"] a {
+  color: var(--foreground);
+  text-decoration: none;
+}
+.shared-products [data-slot="card-title"] a:hover {
+  text-decoration: underline;
 }
 @media (max-width: 760px) {
   .account-actions {

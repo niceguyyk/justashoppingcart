@@ -113,15 +113,27 @@ export function getShare(db: DatabaseSync, token: string) {
   if (!/^[a-f0-9]{48}$/.test(token)) return null;
   const row = db
     .prepare(
-      "SELECT content,created_at,expires_at FROM cart_share WHERE token=? AND expires_at>?",
+      "SELECT s.cart_id,s.created_at,s.expires_at,w.content,w.version FROM cart_share s JOIN cart_workspace w ON w.user_id=s.owner_id WHERE s.token=? AND s.expires_at>?",
     )
     .get(token, Date.now()) as
-    { content: string; created_at: number; expires_at: number } | undefined;
-  return row
+    | {
+        cart_id: string;
+        created_at: number;
+        expires_at: number;
+        content: string;
+        version: number;
+      }
+    | undefined;
+  if (!row) return null;
+  const cart = (JSON.parse(row.content) as Store).carts.find(
+    (candidate) => candidate.id === row.cart_id,
+  );
+  return cart
     ? {
-        cart: JSON.parse(row.content),
+        cart,
         createdAt: row.created_at,
         expiresAt: row.expires_at,
+        version: row.version,
       }
     : null;
 }
