@@ -11,7 +11,19 @@ import {
   moveProductToCart,
   findDuplicate,
   productLinkKey,
+  cartTotals,
 } from "../src/lib/cart.ts";
+
+test("totals separate planned, later and bought quantities without losing legacy products", () => {
+  const products = [
+    { id: "legacy", name: "Legacy", url: "https://example.com/legacy", image: "", price: 1000, quantity: 2, shop: "Custom link" },
+    { id: "now", name: "Now", url: "https://example.com/now", image: "", price: 550, quantity: 1, shop: "Custom link", status: "planned" as const },
+    { id: "later", name: "Later", url: "https://example.com/later", image: "", price: 1250, quantity: 3, shop: "Custom link", status: "later" as const },
+    { id: "bought", name: "Bought", url: "https://example.com/bought", image: "", price: 900, quantity: 2, shop: "Custom link", status: "bought" as const },
+  ];
+  assert.deepEqual(cartTotals(products), { now: 2550, later: 3750, bought: 1800, all: 8100 });
+  assert.deepEqual(cartTotals([]), { now: 0, later: 0, bought: 0, all: 0 });
+});
 
 test("product notes and statuses validate, while duplicate links ignore tracking details", () => {
   const store = emptyStore();

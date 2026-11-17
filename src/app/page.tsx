@@ -92,6 +92,7 @@ import {
   newId,
   moveProductToCart,
   findDuplicate,
+  cartTotals,
 } from "@/lib/cart";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { AccountDialog } from "@/components/cart/account-dialog";
@@ -193,7 +194,8 @@ export default function Home() {
     return () => requestRef.current?.abort();
   }, []);
   const cart = store.carts.find((c) => c.id === store.active) || store.carts[0];
-  const total = cart.products.reduce((sum, p) => sum + p.price * p.quantity, 0);
+  const totals = cartTotals(cart.products);
+  const hasDeferredProducts = cart.products.some((p) => p.status === "later" || p.status === "bought");
   const count = cart.products.reduce((sum, p) => sum + p.quantity, 0);
   const sources = [...new Set(cart.products.map((p) => p.shop))];
   const visible = cart.products
@@ -1149,14 +1151,22 @@ export default function Home() {
                   </div>
                   <Separator />
                   <div className="flex flex-col gap-2">
-                    <span className="text-sm text-muted-foreground">Total</span>
+                    <span className="text-sm text-muted-foreground">Buy now</span>
                     <strong className="total" aria-live="polite">
-                      {money(total)}
+                      {money(totals.now)}
                     </strong>
                     <span className="text-xs text-muted-foreground">
-                      Excludes additional shipping
+                      Planned products · excludes shipping
                     </span>
                   </div>
+                  {hasDeferredProducts && <>
+                    <Separator />
+                    <div className="flex flex-col gap-3" aria-live="polite">
+                      <div className="summary-row"><span>For later</span><strong>{money(totals.later)}</strong></div>
+                      <div className="summary-row"><span>Bought</span><strong>{money(totals.bought)}</strong></div>
+                      <div className="summary-row border-t border-border pt-3"><span>All items</span><strong>{money(totals.all)}</strong></div>
+                    </div>
+                  </>}
                   <Button
                     className="w-full"
                     size="lg"
@@ -1510,9 +1520,11 @@ export default function Home() {
               check details before saving. <a className="underline" href={`${basePath}/extension/`}>Get the browser extension</a>.
             </p>
             <p>
-              <strong>Total:</strong> All prices are in euros. Totals include
-              quantities, but exclude additional shipping, price changes and
-              discounts.
+              <strong>Totals:</strong> All prices are in euros and include quantities.
+              Buy now includes planned products, including older products without
+              a status. For later and bought are shown separately. All items
+              includes every status. Totals exclude shipping, future price
+              changes and discounts.
             </p>
           </div>
           <DialogFooter>

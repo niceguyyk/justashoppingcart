@@ -31,6 +31,18 @@ export const money = (cents: number) =>
     cents / 100,
   );
 export const productStatuses = ["planned", "later", "bought"] as const;
+export function cartTotals(products: Product[]) {
+  const totals = { now: 0, later: 0, bought: 0, all: 0 };
+  for (const product of products) {
+    const amount = product.price * product.quantity;
+    const group = product.status === "later" || product.status === "bought"
+      ? product.status
+      : "now";
+    totals[group] += amount;
+    totals.all += amount;
+  }
+  return totals;
+}
 export function productLinkKey(value: string) {
   const safe = safeUrl(value);
   if (!safe) return "";

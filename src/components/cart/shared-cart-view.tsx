@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, type FormEvent } from "react";
-import { type Cart, type Product, money, validStore, safeUrl, shopFor, newId, findDuplicate } from "@/lib/cart";
+import { type Cart, type Product, money, validStore, safeUrl, shopFor, newId, findDuplicate, cartTotals } from "@/lib/cart";
 import {
   Card,
   CardHeader,
@@ -48,6 +48,8 @@ export function SharedCartView({
   const [busy, setBusy] = useState(false);
   const [importing, setImporting] = useState(false);
   const [duplicate, setDuplicate] = useState<Product | null>(null);
+  const totals = cartTotals(data?.cart.products || []);
+  const hasDeferredProducts = data?.cart.products.some((product) => product.status === "later" || product.status === "bought");
   async function reload() {
     const response = await fetch(`/api/shares/${encodeURIComponent(token)}`, { cache: "no-store" });
     const value = await response.json();
@@ -190,7 +192,7 @@ export function SharedCartView({
                 {new Date(data.expiresAt).toLocaleDateString("en-GB")}.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex flex-col gap-4">
               <div className="summary-row">
                 <span>
                   {data.cart.products.reduce((sum, p) => sum + p.quantity, 0)}{" "}
@@ -199,15 +201,16 @@ export function SharedCartView({
                     ? "shop"
                     : "shops"}
                 </span>
-                <strong className="shared-total">
-                  {money(
-                    data.cart.products.reduce(
-                      (sum, p) => sum + p.price * p.quantity,
-                      0,
-                    ),
-                  )}
-                </strong>
               </div>
+              <div className="flex items-end justify-between gap-3">
+                <span className="text-sm text-muted-foreground">Buy now</span>
+                <strong className="shared-total" aria-live="polite">{money(totals.now)}</strong>
+              </div>
+              {hasDeferredProducts && <div className="flex flex-col gap-3 border-t border-border pt-4" aria-live="polite">
+                <div className="summary-row"><span>For later</span><strong>{money(totals.later)}</strong></div>
+                <div className="summary-row"><span>Bought</span><strong>{money(totals.bought)}</strong></div>
+                <div className="summary-row border-t border-border pt-3"><span>All items</span><strong>{money(totals.all)}</strong></div>
+              </div>}
             </CardContent>
             <CardFooter className="flex-wrap justify-between gap-3">
               <span className="text-xs text-muted-foreground">

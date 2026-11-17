@@ -9,6 +9,7 @@ A small tool for collecting product links from different shops and calculating a
 - Add notes and a planned, for-later or bought status to products
 - Detect duplicate links and increase quantity or keep a separate entry
 - Calculate EUR totals using integer cents
+- Show separate totals for products to buy now, for later and already bought, plus all items
 - Import JSON-LD, Open Graph and itemprop details from Amazon country sites and other public HTTPS product pages when they allow access
 - Enter or correct any missing product details manually
 - Search, shop filters, sorting, grid and list views
