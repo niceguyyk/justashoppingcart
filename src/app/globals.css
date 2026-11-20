@@ -492,7 +492,7 @@ h2 {
 .product-image {
   height: 175px;
   position: relative;
-  background: #e8e8e8;
+  background: #fff;
   margin-top: calc(-1 * var(--card-spacing));
   overflow: hidden;
 }
@@ -510,7 +510,7 @@ h2 {
   justify-content: center;
   height: 100%;
   color: #737373;
-  background: radial-gradient(ellipse at 50% 60%, #dedede, #eeeeee);
+  background: #fff;
 }
 .image-placeholder > svg {
   width: 46px;
@@ -1199,7 +1199,7 @@ h1 {
   height: 205px;
   flex: none;
   overflow: hidden;
-  background: #f4f4f4;
+  background: #fff;
   color: #555;
 }
 .shared-image img {
