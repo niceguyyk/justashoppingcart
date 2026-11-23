@@ -16,6 +16,7 @@ import {
   removeCategory,
   includeProductCategories,
   mergeProductCategories,
+  addCategoriesToProducts,
   matchesCategoryFilter,
   UNCATEGORIZED,
 } from "../src/lib/cart.ts";
@@ -51,6 +52,27 @@ test("moving a tagged product carries its categories to the target cart", () => 
   assert.deepEqual(moved.carts[1].products[0].categories, ["RAM"]);
   assert.equal(validStore(moved), true);
   assert.equal(store.carts[0].products.length, 1);
+});
+
+test("bulk category assignment updates only selected products and keeps existing labels", () => {
+  const cart = emptyStore().carts[0];
+  cart.categories = ["Vest"];
+  cart.products = [
+    { id: "a", name: "Armor", url: "https://example.com/a", image: "", price: 3000, quantity: 1, shop: "Custom link", categories: ["Vest"] },
+    { id: "b", name: "Helmet", url: "https://example.com/b", image: "", price: 2000, quantity: 2, shop: "Custom link" },
+    { id: "c", name: "Memory", url: "https://example.com/c", image: "", price: 1000, quantity: 1, shop: "Custom link" },
+  ];
+  const updated = addCategoriesToProducts(cart, ["a", "b"], ["Gear", "Helmet"]);
+  assert.deepEqual(updated.categories, ["Vest", "Gear", "Helmet"]);
+  assert.deepEqual(updated.products.map((product) => product.categories), [["Vest", "Gear", "Helmet"], ["Gear", "Helmet"], undefined]);
+  assert.equal(updated.products[1].quantity, 2);
+  assert.equal(validStore({ carts: [updated], active: updated.id }), true);
+  assert.deepEqual(cart.categories, ["Vest"]);
+  assert.equal(cart.products[1].categories, undefined);
+  assert.throws(() => addCategoriesToProducts(cart, ["missing"], ["Gear"]), /Select products/);
+  assert.throws(() => addCategoriesToProducts(cart, ["a"], []), /Choose at least one/);
+  assert.throws(() => addCategoriesToProducts(cart, ["a"], Array.from({ length: 9 }, (_, index) => `Tag ${index}`)), /up to 8 categories/);
+  assert.deepEqual(cart.categories, ["Vest"]);
 });
 
 test("totals separate planned, later and bought quantities without losing legacy products", () => {

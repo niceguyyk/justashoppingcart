@@ -27,10 +27,12 @@ export function CategoryPicker({
   available,
   selected,
   onChange,
+  description = "Choose several categories or create one for this product.",
 }: {
   available: string[];
   selected: string[];
   onChange: (categories: string[]) => void;
+  description?: string;
 }) {
   const id = useId();
   const [name, setName] = useState("");
@@ -51,9 +53,7 @@ export function CategoryPicker({
   return (
     <div className="flex flex-col gap-2">
       <span className="text-sm font-medium">Categories</span>
-      <p className="text-xs text-muted-foreground">
-        Choose several categories or create one for this product.
-      </p>
+      <p className="text-xs text-muted-foreground">{description}</p>
       {categories.length > 0 && (
         <div className="grid max-h-36 grid-cols-2 gap-x-3 gap-y-2 overflow-y-auto rounded-lg border border-border p-3">
           {categories.map((category, index) => (

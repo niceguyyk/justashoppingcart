@@ -11,6 +11,7 @@ import {
   Cookie,
   ImageIcon,
   LayoutGrid,
+  ListChecks,
   Link2,
   List,
   LoaderCircle,
@@ -30,6 +31,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardHeader,
@@ -97,6 +99,7 @@ import {
   addCategory,
   removeCategory,
   includeProductCategories,
+  addCategoriesToProducts,
   mergeProductCategories,
   matchesCategoryFilter,
   UNCATEGORIZED,
@@ -175,6 +178,10 @@ export default function Home() {
   const [categoryDialog, setCategoryDialog] = useState(false);
   const [categoryName, setCategoryName] = useState("");
   const [categoryError, setCategoryError] = useState("");
+  const [selection, setSelection] = useState<{ cartId: string; active: boolean; ids: string[] }>({ cartId: "", active: false, ids: [] });
+  const [bulkDialog, setBulkDialog] = useState(false);
+  const [bulkCategories, setBulkCategories] = useState<string[]>([]);
+  const [bulkError, setBulkError] = useState("");
   const [view, setView] = useState("grid");
   const [link, setLink] = useState("");
   const [preset, setPreset] = useState("Auto-detect");
@@ -209,6 +216,10 @@ export default function Home() {
     return () => requestRef.current?.abort();
   }, []);
   const cart = store.carts.find((c) => c.id === store.active) || store.carts[0];
+  const selectionActive = selection.cartId === cart.id && selection.active;
+  const selectedProductIds = selectionActive
+    ? selection.ids.filter((id) => cart.products.some((product) => product.id === id))
+    : [];
   const totals = cartTotals(cart.products);
   const hasDeferredProducts = cart.products.some((p) => p.status === "later" || p.status === "bought");
   const count = cart.products.reduce((sum, p) => sum + p.quantity, 0);
@@ -275,6 +286,8 @@ export default function Home() {
   function persist(next: Store, message = "") {
     try {
       workspace.persist(next);
+      if (next.active !== store.active)
+        setSelection({ cartId: next.active, active: false, ids: [] });
       setError("");
       if (message) setNotice(message);
       return true;
@@ -483,6 +496,31 @@ export default function Home() {
     const updated = removeCategory(cart, name);
     if (persist({ ...store, carts: store.carts.map((item) => item.id === cart.id ? updated : item) }, "Category removed from this cart and its products."))
       setCategoryFilter((current) => ({ ...current, selected: current.selected.filter((item) => item !== name) }));
+  }
+  function toggleProductSelection(id: string) {
+    setSelection((current) => {
+      const ids = current.cartId === cart.id && current.active ? current.ids : [];
+      return {
+        cartId: cart.id,
+        active: true,
+        ids: ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id],
+      };
+    });
+  }
+  function assignSelectedCategories() {
+    try {
+      const updated = addCategoriesToProducts(cart, selectedProductIds, bulkCategories);
+      if (persist({ ...store, carts: store.carts.map((item) => item.id === cart.id ? updated : item) }, `Categories added to ${selectedProductIds.length} products.`)) {
+        setBulkDialog(false);
+        setBulkCategories([]);
+        setBulkError("");
+        setSelection({ cartId: cart.id, active: false, ids: [] });
+      } else {
+        setBulkError("Could not save these changes. Check your storage and try again.");
+      }
+    } catch (problem) {
+      setBulkError((problem as Error).message);
+    }
   }
   function exportData() {
     const url = URL.createObjectURL(
@@ -983,6 +1021,16 @@ export default function Home() {
                   </NativeSelectOption>
                   <NativeSelectOption value="name">Name A–Z</NativeSelectOption>
                 </NativeSelect>
+                <Button
+                  variant={selectionActive ? "secondary" : "outline"}
+                  size="sm"
+                  aria-pressed={selectionActive}
+                  disabled={!ready || (!cart.products.length && !selectionActive)}
+                  onClick={() => setSelection({ cartId: cart.id, active: !selectionActive, ids: [] })}
+                >
+                  <ListChecks data-icon="inline-start" />
+                  {selectionActive ? "Done" : "Select products"}
+                </Button>
                 <ToggleGroup
                   aria-label="View"
                   value={[view]}
@@ -1001,6 +1049,37 @@ export default function Home() {
                   </ToggleGroupItem>
                 </ToggleGroup>
               </div>
+              {selectionActive && (
+                <Card className="mb-4 gap-0 py-0">
+                  <CardContent className="flex flex-wrap items-center gap-2 px-3 py-2">
+                    <strong className="mr-auto text-sm">{selectedProductIds.length} selected</strong>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={!visible.length || visible.every((product) => selectedProductIds.includes(product.id))}
+                      onClick={() => setSelection({ cartId: cart.id, active: true, ids: [...new Set([...selectedProductIds, ...visible.map((product) => product.id)])] })}
+                    >
+                      Select all shown
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={!selectedProductIds.length}
+                      onClick={() => setSelection({ cartId: cart.id, active: true, ids: [] })}
+                    >
+                      Clear selection
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={!selectedProductIds.length}
+                      onClick={() => { setBulkCategories([]); setBulkError(""); setBulkDialog(true); }}
+                    >
+                      <Tags data-icon="inline-start" />
+                      Add to categories
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
               {!ready ? (
                 <p
                   className="py-20 text-center text-muted-foreground"
@@ -1051,7 +1130,7 @@ export default function Home() {
                   className={cn("product-grid", view === "list" && "list-view")}
                 >
                   {visible.map((p) => (
-                    <Card key={p.id} className="product-card">
+                    <Card key={p.id} className={cn("product-card", selectedProductIds.includes(p.id) && "ring-2 ring-primary")}>
                       <div className="product-image">
                         <ProductImage
                           key={p.image}
@@ -1073,6 +1152,17 @@ export default function Home() {
                         </Button>
                       </div>
                       <CardHeader>
+                        {selectionActive && (
+                          <Field orientation="horizontal" className="w-fit gap-2">
+                            <Checkbox
+                              id={`select-product-${p.id}`}
+                              aria-label={`Select ${p.name}`}
+                              checked={selectedProductIds.includes(p.id)}
+                              onCheckedChange={() => toggleProductSelection(p.id)}
+                            />
+                            <FieldLabel htmlFor={`select-product-${p.id}`} className="text-xs font-normal">Select</FieldLabel>
+                          </Field>
+                        )}
                         <CardTitle>
                           <a
                             href={p.url}
@@ -1302,6 +1392,29 @@ export default function Home() {
             )) : <p className="py-4 text-center text-sm text-muted-foreground">No categories yet.</p>}
           </div>
           <p className="text-xs text-muted-foreground">Removing a category also removes its label from products. The products stay in your cart.</p>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={bulkDialog} onOpenChange={(open) => { setBulkDialog(open); if (!open) { setBulkCategories([]); setBulkError(""); } }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add products to categories</DialogTitle>
+            <DialogDescription>
+              Add labels to {selectedProductIds.length} selected {selectedProductIds.length === 1 ? "product" : "products"}. Existing labels stay in place.
+            </DialogDescription>
+          </DialogHeader>
+          <CategoryPicker
+            available={categories}
+            selected={bulkCategories}
+            onChange={(selected) => { setBulkCategories(selected); setBulkError(""); }}
+            description="Choose one or more categories, or create a new one for the selected products."
+          />
+          {bulkError && <Alert variant="destructive"><AlertDescription role="alert">{bulkError}</AlertDescription></Alert>}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDialog(false)}>Cancel</Button>
+            <Button disabled={!bulkCategories.length || !selectedProductIds.length} onClick={assignSelectedCategories}>
+              <Check data-icon="inline-start" />Add to products
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
       <Dialog

@@ -43,6 +43,23 @@ export function mergeProductCategories(product: Product, incoming: Product): Pro
     throw new Error(`A product can have up to ${MAX_PRODUCT_CATEGORIES} categories.`);
   return categories.length ? { ...product, categories } : product;
 }
+export function addCategoriesToProducts(cart: Cart, productIds: string[], categoryNames: string[]): Cart {
+  const ids = new Set(productIds);
+  if (!ids.size || ids.size !== productIds.length ||
+    [...ids].some((id) => !cart.products.some((product) => product.id === id)))
+    throw new Error("Select products in this cart first.");
+  if (!categoryNames.length || new Set(categoryNames).size !== categoryNames.length)
+    throw new Error("Choose at least one category.");
+  let updated = cart;
+  for (const category of categoryNames)
+    if (!(updated.categories || []).includes(category)) updated = addCategory(updated, category);
+  return {
+    ...updated,
+    products: cart.products.map((product) => ids.has(product.id)
+      ? mergeProductCategories(product, { ...product, categories: categoryNames })
+      : product),
+  };
+}
 export function removeCategory(cart: Cart, name: string): Cart {
   return {
     ...cart,

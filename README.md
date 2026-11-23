@@ -8,6 +8,7 @@ A small tool for collecting product links from different shops and calculating a
 - Save and edit product URLs, names, image URLs, unit prices and quantities
 - Add notes and a planned, for-later or bought status to products
 - Create up to 30 categories per cart, assign up to eight per product, and show or hide multiple categories at once (including uncategorized products)
+- Select multiple products (or all shown products) and add one or more categories to them in one action
 - Detect duplicate links and increase quantity or keep a separate entry
 - Calculate EUR totals using integer cents
 - Show separate totals for products to buy now, for later and already bought, plus all items
