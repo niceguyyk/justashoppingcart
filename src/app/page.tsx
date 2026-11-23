@@ -96,6 +96,7 @@ import {
   moveProductToCart,
   findDuplicate,
   cartTotals,
+  categoryTotals,
   addCategory,
   removeCategory,
   includeProductCategories,
@@ -221,6 +222,7 @@ export default function Home() {
     ? selection.ids.filter((id) => cart.products.some((product) => product.id === id))
     : [];
   const totals = cartTotals(cart.products);
+  const categoriesWithTotals = categoryTotals(cart);
   const hasDeferredProducts = cart.products.some((p) => p.status === "later" || p.status === "bought");
   const count = cart.products.reduce((sum, p) => sum + p.quantity, 0);
   const sources = [...new Set(cart.products.map((p) => p.shop))];
@@ -1316,6 +1318,21 @@ export default function Home() {
                       Planned products · excludes shipping
                     </span>
                   </div>
+                  {categoriesWithTotals.length > 0 && <>
+                    <Separator />
+                    <div className="flex flex-col gap-3" aria-live="polite">
+                      <h3 className="text-sm font-medium">By category</h3>
+                      {categoriesWithTotals.map((category) => (
+                        <div className="summary-row" key={category.name}>
+                          <span className="min-w-0 break-words">{category.name}</span>
+                          <strong>{money(category.all)}</strong>
+                        </div>
+                      ))}
+                      <p className="text-xs text-muted-foreground">
+                        Includes all statuses. Products in multiple categories appear in each.
+                      </p>
+                    </div>
+                  </>}
                   {hasDeferredProducts && <>
                     <Separator />
                     <div className="flex flex-col gap-3" aria-live="polite">
@@ -1746,8 +1763,9 @@ export default function Home() {
             <p>
               <strong>Totals:</strong> All prices are in euros and include quantities.
               Buy now includes planned products, including older products without
-              a status. For later and bought are shown separately. All items
-              includes every status. Totals exclude shipping, future price
+              a status. Category totals include every status and can overlap when
+              a product has multiple categories. For later and bought are shown
+              separately. All items includes every status. Totals exclude shipping, future price
               changes and discounts.
             </p>
           </div>

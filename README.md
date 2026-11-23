@@ -12,6 +12,7 @@ A small tool for collecting product links from different shops and calculating a
 - Detect duplicate links and increase quantity or keep a separate entry
 - Calculate EUR totals using integer cents
 - Show separate totals for products to buy now, for later and already bought, plus all items
+- Show quantity-adjusted totals for each category in the cart and live shared view; category totals include every status and may overlap for products with multiple labels
 - Import JSON-LD, Open Graph and itemprop details from Amazon country sites and other public HTTPS product pages when they allow access
 - Enter or correct any missing product details manually
 - Search, shop and category filters, sorting, grid and list views

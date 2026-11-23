@@ -12,6 +12,7 @@ import {
   findDuplicate,
   productLinkKey,
   cartTotals,
+  categoryTotals,
   addCategory,
   removeCategory,
   includeProductCategories,
@@ -84,6 +85,22 @@ test("totals separate planned, later and bought quantities without losing legacy
   ];
   assert.deepEqual(cartTotals(products), { now: 2550, later: 3750, bought: 1800, all: 8100 });
   assert.deepEqual(cartTotals([]), { now: 0, later: 0, bought: 0, all: 0 });
+});
+
+test("category totals include quantities and every status without changing status totals", () => {
+  const cart = emptyStore().carts[0];
+  cart.categories = ["Vest", "Helmet", "RAM"];
+  cart.products = [
+    { id: "vest", name: "Vest", url: "https://example.com/vest", image: "", price: 40000, quantity: 2, shop: "Custom link", categories: ["Vest"] },
+    { id: "helmet", name: "Helmet", url: "https://example.com/helmet", image: "", price: 30000, quantity: 1, shop: "Custom link", categories: ["Helmet"] },
+    { id: "later", name: "Later", url: "https://example.com/later", image: "", price: 60000, quantity: 2, shop: "Custom link", status: "later", categories: ["Vest", "Helmet"] },
+  ];
+  assert.deepEqual(categoryTotals(cart), [
+    { name: "Vest", now: 80000, later: 120000, bought: 0, all: 200000 },
+    { name: "Helmet", now: 30000, later: 120000, bought: 0, all: 150000 },
+    { name: "RAM", now: 0, later: 0, bought: 0, all: 0 },
+  ]);
+  assert.deepEqual(cartTotals(cart.products), { now: 110000, later: 120000, bought: 0, all: 230000 });
 });
 
 test("product notes and statuses validate, while duplicate links ignore tracking details", () => {

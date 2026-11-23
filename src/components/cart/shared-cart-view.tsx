@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, type FormEvent } from "react";
-import { type Cart, type Product, money, validStore, safeUrl, shopFor, newId, findDuplicate, cartTotals, includeProductCategories, mergeProductCategories, matchesCategoryFilter, UNCATEGORIZED } from "@/lib/cart";
+import { type Cart, type Product, money, validStore, safeUrl, shopFor, newId, findDuplicate, cartTotals, categoryTotals, includeProductCategories, mergeProductCategories, matchesCategoryFilter, UNCATEGORIZED } from "@/lib/cart";
 import { CategoryFilter, CategoryPicker, ProductCategoryBadges } from "@/components/cart/category-controls";
 import {
   Card,
@@ -52,6 +52,7 @@ export function SharedCartView({
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [categoryMode, setCategoryMode] = useState<"show" | "hide">("hide");
   const totals = cartTotals(data?.cart.products || []);
+  const categoriesWithTotals = data ? categoryTotals(data.cart) : [];
   const hasDeferredProducts = data?.cart.products.some((product) => product.status === "later" || product.status === "bought");
   const categories = data?.cart.categories || [];
   const activeCategories = selectedCategories.filter((category) => category === UNCATEGORIZED || categories.includes(category));
@@ -228,6 +229,16 @@ export function SharedCartView({
                 <span className="text-sm text-muted-foreground">Buy now</span>
                 <strong className="shared-total" aria-live="polite">{money(totals.now)}</strong>
               </div>
+              {categoriesWithTotals.length > 0 && <div className="flex flex-col gap-3 border-t border-border pt-4" aria-live="polite">
+                <h2 className="text-sm font-medium">By category</h2>
+                {categoriesWithTotals.map((category) => (
+                  <div className="summary-row" key={category.name}>
+                    <span className="min-w-0 break-words">{category.name}</span>
+                    <strong>{money(category.all)}</strong>
+                  </div>
+                ))}
+                <p className="text-xs text-muted-foreground">Includes all statuses. Products in multiple categories appear in each.</p>
+              </div>}
               {hasDeferredProducts && <div className="flex flex-col gap-3 border-t border-border pt-4" aria-live="polite">
                 <div className="summary-row"><span>For later</span><strong>{money(totals.later)}</strong></div>
                 <div className="summary-row"><span>Bought</span><strong>{money(totals.bought)}</strong></div>

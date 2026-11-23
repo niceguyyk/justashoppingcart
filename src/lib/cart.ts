@@ -115,6 +115,12 @@ export function cartTotals(products: Product[]) {
   }
   return totals;
 }
+export function categoryTotals(cart: Cart) {
+  return (cart.categories || []).map((name) => ({
+    name,
+    ...cartTotals(cart.products.filter((product) => product.categories?.includes(name))),
+  }));
+}
 export function productLinkKey(value: string) {
   const safe = safeUrl(value);
   if (!safe) return "";
