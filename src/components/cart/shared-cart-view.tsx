@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, type FormEvent } from "react";
-import { type Cart, type Product, money, validStore, safeUrl, shopFor, newId, findDuplicate, cartTotals } from "@/lib/cart";
+import { type Cart, type Product, money, validStore, safeUrl, shopFor, newId, findDuplicate, cartTotals, includeProductCategories, mergeProductCategories, matchesCategoryFilter, UNCATEGORIZED } from "@/lib/cart";
+import { CategoryFilter, CategoryPicker, ProductCategoryBadges } from "@/components/cart/category-controls";
 import {
   Card,
   CardHeader,
@@ -18,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { ArrowLeft, ArrowUpRight, Copy, ShoppingBag, Pencil, Plus, Trash2, Sparkles } from "lucide-react";
-const blank = { name: "", url: "", image: "", price: "", quantity: "1", shop: "Custom link", notes: "", status: "planned" as "planned" | "later" | "bought" };
+const blank = { name: "", url: "", image: "", price: "", quantity: "1", shop: "Custom link", notes: "", status: "planned" as "planned" | "later" | "bought", categories: [] as string[] };
 export function SharedCartView({
   token,
   onBack,
@@ -48,8 +49,13 @@ export function SharedCartView({
   const [busy, setBusy] = useState(false);
   const [importing, setImporting] = useState(false);
   const [duplicate, setDuplicate] = useState<Product | null>(null);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [categoryMode, setCategoryMode] = useState<"show" | "hide">("hide");
   const totals = cartTotals(data?.cart.products || []);
   const hasDeferredProducts = data?.cart.products.some((product) => product.status === "later" || product.status === "bought");
+  const categories = data?.cart.categories || [];
+  const activeCategories = selectedCategories.filter((category) => category === UNCATEGORIZED || categories.includes(category));
+  const visibleProducts = (data?.cart.products || []).filter((product) => matchesCategoryFilter(product, activeCategories, categoryMode));
   async function reload() {
     const response = await fetch(`/api/shares/${encodeURIComponent(token)}`, { cache: "no-store" });
     const value = await response.json();
@@ -86,7 +92,7 @@ export function SharedCartView({
     if (!data || data.mode !== "edit") return;
     setEditingId(product?.id || null);
     setEditVersion(data.version);
-    setDraft(product ? { ...product, price: (product.price / 100).toFixed(2), quantity: String(product.quantity), notes: product.notes || "", status: product.status || "planned" } : blank);
+    setDraft(product ? { ...product, price: (product.price / 100).toFixed(2), quantity: String(product.quantity), notes: product.notes || "", status: product.status || "planned", categories: product.categories || [] } : blank);
     setEditError("");
     setDuplicate(null);
     setEditor(true);
@@ -112,11 +118,27 @@ export function SharedCartView({
     if (!draft.name.trim() || !safeUrl(draft.url) || !/^\d+(?:[.,]\d{1,2})?$/.test(draft.price) || !Number.isFinite(price) || price < 0 || price > 1000000 || !Number.isInteger(quantity) || quantity < 1 || quantity > 999 || (draft.image && !safeUrl(draft.image)) || draft.notes.length > 500) {
       setEditError("Check the name, URL, EUR price, quantity, notes and image URL."); return;
     }
-    const product: Product = { id: editingId || newId(), name: draft.name.trim(), url: safeUrl(draft.url), image: safeUrl(draft.image), price: Math.round(price * 100), quantity, shop: draft.shop || shopFor(draft.url), notes: draft.notes.trim(), status: draft.status };
+    const product: Product = { id: editingId || newId(), name: draft.name.trim(), url: safeUrl(draft.url), image: safeUrl(draft.image), price: Math.round(price * 100), quantity, shop: draft.shop || shopFor(draft.url), notes: draft.notes.trim(), status: draft.status, ...(draft.categories.length ? { categories: draft.categories } : {}) };
     const match = !editingId && findDuplicate(data.cart.products, product.url);
     if (match && !allowDuplicate) { setDuplicate(match); return; }
-    const products = editingId ? data.cart.products.map((item) => item.id === editingId ? product : item) : [product, ...data.cart.products];
-    void writeCart({ ...data.cart, products }, editVersion);
+    try {
+      const updated = includeProductCategories(data.cart, product);
+      const products = editingId ? data.cart.products.map((item) => item.id === editingId ? product : item) : [product, ...data.cart.products];
+      void writeCart({ ...updated, products }, editVersion);
+    } catch (problem) {
+      setEditError((problem as Error).message);
+    }
+  }
+  function increaseDuplicateQuantity() {
+    if (!data || !duplicate) return;
+    try {
+      const incoming: Product = { ...duplicate, categories: draft.categories };
+      const merged = mergeProductCategories(duplicate, incoming);
+      const updated = includeProductCategories(data.cart, merged);
+      void writeCart({ ...updated, products: data.cart.products.map((item) => item.id === duplicate.id ? { ...merged, quantity: item.quantity + Number(draft.quantity) } : item) }, editVersion);
+    } catch (problem) {
+      setEditError((problem as Error).message);
+    }
   }
   useEffect(() => {
     setError("");
@@ -222,8 +244,19 @@ export function SharedCartView({
               </div>
             </CardFooter>
           </Card>
+          <div className="flex flex-wrap items-center gap-3">
+            <CategoryFilter
+              categories={categories}
+              selected={activeCategories}
+              mode={categoryMode}
+              onSelectedChange={setSelectedCategories}
+              onModeChange={setCategoryMode}
+            />
+            <span className="text-xs text-muted-foreground">{visibleProducts.length} of {data.cart.products.length} products shown</span>
+          </div>
+          {!visibleProducts.length && <p className="py-10 text-center text-sm text-muted-foreground">No products match this category filter.</p>}
           <div className="shared-products">
-            {data.cart.products.map((product) => (
+            {visibleProducts.map((product) => (
               <Card key={product.id} className="shared-product-card gap-0 py-0">
                 <div className="shared-image">
                   {product.image ? (
@@ -254,6 +287,7 @@ export function SharedCartView({
                   </CardTitle>
                   <CardDescription>{product.shop}</CardDescription>
                   {product.status && product.status !== "planned" && <Badge variant="outline" className="w-fit">{product.status === "later" ? "For later" : "Bought"}</Badge>}
+                  <ProductCategoryBadges categories={product.categories} />
                   {product.notes && <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words">{product.notes}</p>}
                 </CardHeader>
                 <CardContent className="pb-4">
@@ -301,9 +335,10 @@ export function SharedCartView({
               </div>
               <Field><FieldLabel htmlFor="shared-image">Image URL (optional)</FieldLabel><Input id="shared-image" type="url" maxLength={2048} value={draft.image} onChange={(event) => setDraft({ ...draft, image: event.target.value })} /></Field>
               <Field><FieldLabel htmlFor="shared-status">Status</FieldLabel><NativeSelect id="shared-status" value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value as "planned" | "later" | "bought" })}><NativeSelectOption value="planned">Planned</NativeSelectOption><NativeSelectOption value="later">For later</NativeSelectOption><NativeSelectOption value="bought">Bought</NativeSelectOption></NativeSelect></Field>
+              <CategoryPicker available={categories} selected={draft.categories} onChange={(selected) => setDraft((current) => ({ ...current, categories: selected }))} />
               <Field><FieldLabel htmlFor="shared-notes">Notes (optional)</FieldLabel><Textarea id="shared-notes" maxLength={500} value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} /></Field>
             </FieldGroup>
-            {duplicate && <Alert><AlertDescription>“{duplicate.name}” already uses this link. <Button type="button" variant="outline" size="sm" className="mt-2" disabled={busy || duplicate.quantity + Number(draft.quantity) > 999} onClick={() => { if (!data) return; void writeCart({ ...data.cart, products: data.cart.products.map((item) => item.id === duplicate.id ? { ...item, quantity: item.quantity + Number(draft.quantity) } : item) }, editVersion); }}>Increase its quantity</Button> <Button type="button" variant="ghost" size="sm" className="mt-2" onClick={(event) => saveProduct(event, true)}>Add separately</Button></AlertDescription></Alert>}
+            {duplicate && <Alert><AlertDescription>“{duplicate.name}” already uses this link. <Button type="button" variant="outline" size="sm" className="mt-2" disabled={busy || duplicate.quantity + Number(draft.quantity) > 999} onClick={increaseDuplicateQuantity}>Increase its quantity</Button> <Button type="button" variant="ghost" size="sm" className="mt-2" onClick={(event) => saveProduct(event, true)}>Add separately</Button></AlertDescription></Alert>}
             {editError && <Alert variant="destructive"><AlertDescription role="status">{editError}</AlertDescription></Alert>}
             <DialogFooter><Button type="button" variant="outline" onClick={() => setEditor(false)}>Cancel</Button><Button type="submit" disabled={busy || importing}>Save product</Button></DialogFooter>
           </form>

@@ -7,12 +7,13 @@ A small tool for collecting product links from different shops and calculating a
 - Create, rename, switch and delete multiple carts
 - Save and edit product URLs, names, image URLs, unit prices and quantities
 - Add notes and a planned, for-later or bought status to products
+- Create up to 30 categories per cart, assign up to eight per product, and show or hide multiple categories at once (including uncategorized products)
 - Detect duplicate links and increase quantity or keep a separate entry
 - Calculate EUR totals using integer cents
 - Show separate totals for products to buy now, for later and already bought, plus all items
 - Import JSON-LD, Open Graph and itemprop details from Amazon country sites and other public HTTPS product pages when they allow access
 - Enter or correct any missing product details manually
-- Search, shop filters, sorting, grid and list views
+- Search, shop and category filters, sorting, grid and list views
 - Browser cookie storage with JSON backup export and import
 - Responsive UI and reduced-motion support
 - Send the current product page from Chrome, Edge or Firefox with the extension in `extension/`
@@ -60,7 +61,7 @@ GitHub Pages cannot run server-side import. In that version, product details are
 
 ## Storage and import limits
 
-Carts are stored for up to a year in three browser cookies, with a total limit of 9,000 URL-encoded characters. Actual capacity depends on the length of product and image URLs. Oversized updates are rejected before writing. The app allows up to 12 carts and 100 products per cart within the cookie limit.
+Carts are stored for up to a year in three browser cookies, with a total limit of 9,000 URL-encoded characters. Actual capacity depends on the length of product and image URLs. Oversized updates are rejected before writing. The app allows up to 12 carts, 100 products and 30 categories per cart within the cookie limit.
 
 Clearing cookies removes browser-only carts. Browser-only carts do not sync between devices; signed-in carts do. Export backups regularly. Images load from their providers. Automatic import sends the submitted product URL to the app server and the shop.
 

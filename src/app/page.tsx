@@ -23,6 +23,7 @@ import {
   ShoppingBag,
   ShoppingCart,
   Sparkles,
+  Tags,
   Trash2,
   X,
   Share2,
@@ -93,11 +94,19 @@ import {
   moveProductToCart,
   findDuplicate,
   cartTotals,
+  addCategory,
+  removeCategory,
+  includeProductCategories,
+  mergeProductCategories,
+  matchesCategoryFilter,
+  UNCATEGORIZED,
+  CATEGORY_NAME_LIMIT,
 } from "@/lib/cart";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { AccountDialog } from "@/components/cart/account-dialog";
 import { ShareDialog } from "@/components/cart/share-dialog";
 import { SharedCartView } from "@/components/cart/shared-cart-view";
+import { CategoryFilter, CategoryPicker, ProductCategoryBadges } from "@/components/cart/category-controls";
 gsap.registerPlugin(useGSAP);
 const staticHost = process.env.NEXT_PUBLIC_STATIC_HOST === "true";
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -110,6 +119,7 @@ const blank = {
   shop: "Auto-detect",
   notes: "",
   status: "planned" as "planned" | "later" | "bought",
+  categories: [] as string[],
 };
 function ProductImage({ src, name }: { src: string; name: string }) {
   const [failed, setFailed] = useState(false);
@@ -161,6 +171,10 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("All shops");
   const [sort, setSort] = useState("newest");
+  const [categoryFilter, setCategoryFilter] = useState<{ cartId: string; selected: string[]; mode: "show" | "hide" }>({ cartId: "", selected: [], mode: "hide" });
+  const [categoryDialog, setCategoryDialog] = useState(false);
+  const [categoryName, setCategoryName] = useState("");
+  const [categoryError, setCategoryError] = useState("");
   const [view, setView] = useState("grid");
   const [link, setLink] = useState("");
   const [preset, setPreset] = useState("Auto-detect");
@@ -179,6 +193,7 @@ export default function Home() {
   const [sharedToken, setSharedToken] = useState("");
   const [duplicate, setDuplicate] = useState<Product | null>(null);
   const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
+  const [duplicateError, setDuplicateError] = useState("");
   useEffect(() => {
     if (!staticHost)
       // The initial URL is a browser-only value; read it after hydration.
@@ -198,11 +213,18 @@ export default function Home() {
   const hasDeferredProducts = cart.products.some((p) => p.status === "later" || p.status === "bought");
   const count = cart.products.reduce((sum, p) => sum + p.quantity, 0);
   const sources = [...new Set(cart.products.map((p) => p.shop))];
+  const categories = cart.categories || [];
+  const selectedCategories = categoryFilter.cartId === cart.id
+    ? categoryFilter.selected.filter((category) => category === UNCATEGORIZED || categories.includes(category))
+    : [];
+  const categoryMode = categoryFilter.cartId === cart.id ? categoryFilter.mode : "hide";
+  const filtersActive = !!query.trim() || filter !== "All shops" || selectedCategories.length > 0;
   const visible = cart.products
     .filter(
       (p) =>
         p.name.toLowerCase().includes(query.toLowerCase()) &&
-        (filter === "All shops" || p.shop === filter),
+        (filter === "All shops" || p.shop === filter) &&
+        matchesCategoryFilter(p, selectedCategories, categoryMode),
     )
     .sort((a, b) =>
       sort === "price-asc"
@@ -305,6 +327,7 @@ export default function Home() {
             quantity: String(product.quantity),
             notes: product.notes || "",
             status: product.status || "planned",
+            categories: product.categories || [],
           }
         : { ...blank, shop: preset },
     );
@@ -408,9 +431,11 @@ export default function Home() {
       shop: form.shop === "Auto-detect" ? shopFor(form.url) : form.shop,
       notes: form.notes.trim(),
       status: form.status,
+      ...(form.categories.length ? { categories: form.categories } : {}),
     };
     const match = !editing && findDuplicate(cart.products, product.url);
     if (match) {
+      setDuplicateError("");
       setDuplicate(match);
       setPendingProduct(product);
       return;
@@ -418,25 +443,46 @@ export default function Home() {
     commitProduct(product);
   }
   function commitProduct(product: Product) {
-    if (
-      products(
-        editing
-          ? cart.products.map((p) => (p.id === editing ? product : p))
-          : [product, ...cart.products],
-        editing ? "Product updated." : "Product added.",
-      )
-    ) {
-      setEditor(false);
-      setLink("");
-      setDuplicate(null);
-      setPendingProduct(null);
-    } else {
-      setFormError(
-        user
+    try {
+      const updated = includeProductCategories(cart, product);
+      if (persist({
+        ...store,
+        carts: store.carts.map((item) => item.id === cart.id ? {
+          ...updated,
+          products: editing
+            ? cart.products.map((item) => item.id === editing ? product : item)
+            : [product, ...cart.products],
+        } : item),
+      }, editing ? "Product updated." : "Product added.")) {
+        setEditor(false);
+        setLink("");
+        setDuplicate(null);
+        setPendingProduct(null);
+      } else {
+        setFormError(user
           ? "Could not save. Check account storage, export a backup or shorten image URLs."
-          : "Could not save. Check cookie storage, export a backup or shorten image URLs.",
-      );
+          : "Could not save. Check cookie storage, export a backup or shorten image URLs.");
+      }
+    } catch (problem) {
+      setFormError((problem as Error).message);
     }
+  }
+  function createCategory(event: FormEvent) {
+    event.preventDefault();
+    try {
+      const updated = addCategory(cart, categoryName);
+      if (persist({ ...store, carts: store.carts.map((item) => item.id === cart.id ? updated : item) }, "Category created.")) {
+        setCategoryName("");
+        setCategoryError("");
+      }
+    } catch (problem) {
+      setCategoryError((problem as Error).message);
+    }
+  }
+  function deleteCategory(name: string) {
+    const updated = removeCategory(cart, name);
+    if (persist({ ...store, carts: store.carts.map((item) => item.id === cart.id ? updated : item) }, "Category removed from this cart and its products."))
+      setCategoryFilter((current) => ({ ...current, selected: current.selected.filter((item) => item !== name) }));
   }
   function exportData() {
     const url = URL.createObjectURL(
@@ -485,7 +531,7 @@ export default function Home() {
           ? {
               carts: [
                 ...store.carts,
-                { id, name: cartName.trim(), products: [] },
+                { id, name: cartName.trim(), products: [], categories: [] },
               ],
               active: id,
             }
@@ -832,6 +878,15 @@ export default function Home() {
               <Button
                 variant="outline"
                 size="sm"
+                disabled={!ready}
+                onClick={() => setCategoryDialog(true)}
+              >
+                <Tags data-icon="inline-start" />
+                Categories
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 aria-label="Share cart"
                 disabled={
                   !ready ||
@@ -905,6 +960,13 @@ export default function Home() {
                     <NativeSelectOption key={s}>{s}</NativeSelectOption>
                   ))}
                 </NativeSelect>
+                <CategoryFilter
+                  categories={categories}
+                  selected={selectedCategories}
+                  mode={categoryMode}
+                  onSelectedChange={(selected) => setCategoryFilter({ cartId: cart.id, selected, mode: categoryMode })}
+                  onModeChange={(mode) => setCategoryFilter({ cartId: cart.id, selected: selectedCategories, mode })}
+                />
                 <NativeSelect
                   aria-label="Sort products"
                   value={sort}
@@ -964,16 +1026,20 @@ export default function Home() {
                     </EmptyTitle>
                     <EmptyDescription>
                       {cart.products.length
-                        ? "Try a different search or shop filter."
+                        ? "Try a different search, shop or category filter."
                         : "Add a product URL, enter its details and track the total cost."}
                     </EmptyDescription>
                   </EmptyHeader>
                   <EmptyContent>
-                    <Button onClick={() => openEditor()}>
-                      <Plus data-icon="inline-start" />
-                      {cart.products.length
-                        ? "Add product"
-                        : "Add your first product"}
+                    <Button onClick={() => {
+                      if (cart.products.length && filtersActive) {
+                        setQuery("");
+                        setFilter("All shops");
+                        setCategoryFilter({ cartId: cart.id, selected: [], mode: "hide" });
+                      } else openEditor();
+                    }}>
+                      {cart.products.length && filtersActive ? <X data-icon="inline-start" /> : <Plus data-icon="inline-start" />}
+                      {cart.products.length && filtersActive ? "Clear filters" : cart.products.length ? "Add product" : "Add your first product"}
                     </Button>
                     <span className="text-xs text-muted-foreground">
                       Add links from any shop.
@@ -1022,6 +1088,7 @@ export default function Home() {
                           {new URL(p.url).hostname.replace("www.", "")}
                         </CardDescription>
                         {p.status && p.status !== "planned" && <Badge variant="outline" className="w-fit">{p.status === "later" ? "For later" : "Bought"}</Badge>}
+                        <ProductCategoryBadges categories={p.categories} />
                         {p.notes && <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words">{p.notes}</p>}
                       </CardHeader>
                       <CardContent className="product-price">
@@ -1205,6 +1272,38 @@ export default function Home() {
           </footer>
         </main>
       </div>
+      <Dialog open={categoryDialog} onOpenChange={(open) => { setCategoryDialog(open); if (!open) { setCategoryName(""); setCategoryError(""); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cart categories</DialogTitle>
+            <DialogDescription>
+              Organize products with labels such as Vest, Helmet or RAM. You can assign several labels to a product.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={createCategory} className="flex gap-2">
+            <Input
+              aria-label="Category name"
+              placeholder="New category"
+              maxLength={CATEGORY_NAME_LIMIT}
+              value={categoryName}
+              onChange={(event) => { setCategoryName(event.target.value); setCategoryError(""); }}
+            />
+            <Button type="submit" disabled={!categoryName.trim()}><Plus data-icon="inline-start" />Create</Button>
+          </form>
+          {categoryError && <p role="alert" className="text-sm text-destructive">{categoryError}</p>}
+          <div className="flex max-h-64 flex-col gap-2 overflow-y-auto">
+            {categories.length ? categories.map((category) => (
+              <div key={category} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2">
+                <Tags className="size-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate text-sm">{category}</span>
+                <Badge variant="secondary">{cart.products.filter((product) => product.categories?.includes(category)).length}</Badge>
+                <Button size="icon-xs" variant="ghost" aria-label={`Remove category ${category}`} onClick={() => deleteCategory(category)}><Trash2 /></Button>
+              </div>
+            )) : <p className="py-4 text-center text-sm text-muted-foreground">No categories yet.</p>}
+          </div>
+          <p className="text-xs text-muted-foreground">Removing a category also removes its label from products. The products stay in your cart.</p>
+        </DialogContent>
+      </Dialog>
       <Dialog
         open={editor}
         onOpenChange={(open) => {
@@ -1342,6 +1441,11 @@ export default function Home() {
                   <NativeSelectOption value="bought">Bought</NativeSelectOption>
                 </NativeSelect>
               </Field>
+              <CategoryPicker
+                available={categories}
+                selected={form.categories}
+                onChange={(selected) => setForm((current) => ({ ...current, categories: selected }))}
+              />
               <Field>
                 <FieldLabel htmlFor="product-notes">Notes (optional)</FieldLabel>
                 <Textarea id="product-notes" maxLength={500} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} placeholder="Size, condition, seller, or anything to remember" />
@@ -1380,13 +1484,20 @@ export default function Home() {
             <DialogTitle>Product already in this cart</DialogTitle>
             <DialogDescription>“{duplicate?.name}” uses the same product link. Increase its quantity or add a separate entry?</DialogDescription>
           </DialogHeader>
+          {duplicateError && <Alert variant="destructive"><AlertDescription role="alert">{duplicateError}</AlertDescription></Alert>}
           <DialogFooter className="flex-wrap">
             <Button variant="outline" onClick={() => { setDuplicate(null); setPendingProduct(null); }}>Cancel</Button>
             <Button variant="outline" onClick={() => { if (pendingProduct) commitProduct(pendingProduct); }}>Add separately</Button>
             <Button disabled={!duplicate || !pendingProduct || duplicate.quantity + pendingProduct.quantity > 999} onClick={() => {
               if (!duplicate || !pendingProduct) return;
-              if (products(cart.products.map((item) => item.id === duplicate.id ? { ...item, quantity: item.quantity + pendingProduct.quantity } : item), "Quantity increased.")) {
-                setDuplicate(null); setPendingProduct(null); setEditor(false); setLink("");
+              try {
+                const merged = mergeProductCategories(duplicate, pendingProduct);
+                const updated = includeProductCategories(cart, merged);
+                if (persist({ ...store, carts: store.carts.map((item) => item.id === cart.id ? { ...updated, products: cart.products.map((product) => product.id === duplicate.id ? { ...merged, quantity: product.quantity + pendingProduct.quantity } : product) } : item) }, "Quantity increased.")) {
+                  setDuplicate(null); setPendingProduct(null); setEditor(false); setLink("");
+                }
+              } catch (problem) {
+                setDuplicateError((problem as Error).message);
               }
             }}>Increase quantity</Button>
           </DialogFooter>

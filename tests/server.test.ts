@@ -23,6 +23,7 @@ test("account isolation, optimistic concurrency and persistent restart", () => {
   let db = openDatabase(path);
   try {
     const store = emptyStore();
+    store.carts[0].categories = ["Helmet"];
     store.carts[0].products.push({
       id: "p1",
       name: "Lamp",
@@ -31,6 +32,7 @@ test("account isolation, optimistic concurrency and persistent restart", () => {
       price: 2995,
       quantity: 2,
       shop: "Custom link",
+      categories: ["Helmet"],
     });
     assert.equal(saveWorkspace(db, "owner", store, 0), 1);
     assert.equal(
@@ -93,6 +95,7 @@ test("share links follow the saved cart, remain owner-controlled, revocable and 
   const db = openDatabase(path);
   try {
     const store = emptyStore();
+    store.carts[0].categories = ["Helmet"];
     store.carts[0].products.push({
       id: "p1",
       name: "Original",
@@ -101,6 +104,7 @@ test("share links follow the saved cart, remain owner-controlled, revocable and 
       price: 1000,
       quantity: 1,
       shop: "Custom link",
+      categories: ["Helmet"],
     });
     saveWorkspace(db, "owner", store, 0);
     const share = createShare(db, "owner", store.active);
@@ -109,6 +113,8 @@ test("share links follow the saved cart, remain owner-controlled, revocable and 
     store.carts[0].products[0].name = "Changed";
     saveWorkspace(db, "owner", store, 1);
     assert.equal(getShare(db, share.token)?.cart.products[0].name, "Changed");
+    assert.deepEqual(getShare(db, share.token)?.cart.categories, ["Helmet"]);
+    assert.deepEqual(getShare(db, share.token)?.cart.products[0].categories, ["Helmet"]);
     assert.equal(getShare(db, share.token)?.version, 2);
     assert.equal(revokeShare(db, "other-user", share.token), false);
     assert.ok(getShare(db, share.token));

@@ -12,7 +12,46 @@ import {
   findDuplicate,
   productLinkKey,
   cartTotals,
+  addCategory,
+  removeCategory,
+  includeProductCategories,
+  mergeProductCategories,
+  matchesCategoryFilter,
+  UNCATEGORIZED,
 } from "../src/lib/cart.ts";
+
+test("categories support multi assignment, show and hide filters, and legacy products", () => {
+  const old = { id: "old", name: "Legacy", url: "https://example.com/old", image: "", price: 100, quantity: 1, shop: "Custom link" };
+  const helmet = { ...old, id: "helmet", name: "Helmet", categories: ["Helmet", "Vest"] };
+  const ram = { ...old, id: "ram", name: "RAM", categories: ["RAM"] };
+  let cart = emptyStore().carts[0];
+  cart = addCategory(cart, " Vest ");
+  cart = includeProductCategories(cart, helmet);
+  cart = includeProductCategories(cart, ram);
+  cart.products = [old, helmet, ram];
+  assert.deepEqual(cart.categories, ["Vest", "Helmet", "RAM"]);
+  assert.equal(validStore({ carts: [cart], active: cart.id }), true);
+  assert.deepEqual(cart.products.filter((product) => matchesCategoryFilter(product, ["Helmet", "RAM"], "show")).map((product) => product.id), ["helmet", "ram"]);
+  assert.deepEqual(cart.products.filter((product) => matchesCategoryFilter(product, ["Helmet", "RAM"], "hide")).map((product) => product.id), ["old"]);
+  assert.deepEqual(cart.products.filter((product) => matchesCategoryFilter(product, [UNCATEGORIZED], "show")).map((product) => product.id), ["old"]);
+  assert.deepEqual(mergeProductCategories(ram, helmet).categories, ["RAM", "Helmet", "Vest"]);
+  assert.throws(() => addCategory(cart, "vest"), /already exists/);
+  cart = removeCategory(cart, "Helmet");
+  assert.deepEqual(cart.products[1].categories, ["Vest"]);
+  assert.equal(validStore({ carts: [cart], active: cart.id }), true);
+});
+
+test("moving a tagged product carries its categories to the target cart", () => {
+  const store = emptyStore();
+  store.carts[0] = addCategory(store.carts[0], "RAM");
+  store.carts[0].products.push({ id: "p", name: "Memory", url: "https://example.com/ram", image: "", price: 4500, quantity: 1, shop: "Custom link", categories: ["RAM"] });
+  store.carts.push({ id: "other", name: "Other", products: [] });
+  const moved = moveProductToCart(store, store.active, "p", "other");
+  assert.deepEqual(moved.carts[1].categories, ["RAM"]);
+  assert.deepEqual(moved.carts[1].products[0].categories, ["RAM"]);
+  assert.equal(validStore(moved), true);
+  assert.equal(store.carts[0].products.length, 1);
+});
 
 test("totals separate planned, later and bought quantities without losing legacy products", () => {
   const products = [

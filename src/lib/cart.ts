@@ -8,9 +8,64 @@ export type Product = {
   shop: string;
   notes?: string;
   status?: "planned" | "later" | "bought";
+  categories?: string[];
 };
-export type Cart = { id: string; name: string; products: Product[] };
+export type Cart = { id: string; name: string; products: Product[]; categories?: string[] };
 export type Store = { carts: Cart[]; active: string };
+export const MAX_CATEGORIES = 30;
+export const MAX_PRODUCT_CATEGORIES = 8;
+export const CATEGORY_NAME_LIMIT = 32;
+export const UNCATEGORIZED = "\u0000uncategorized";
+export function newCategoryName(categories: string[], name: string): string {
+  const category = name.trim();
+  if (!category || category.length > CATEGORY_NAME_LIMIT || /[\u0000-\u001f\u007f]/.test(category))
+    throw new Error(`Enter a category name of up to ${CATEGORY_NAME_LIMIT} characters.`);
+  if (categories.some((item) => item.toLowerCase() === category.toLowerCase()))
+    throw new Error("This category already exists.");
+  if (categories.length >= MAX_CATEGORIES)
+    throw new Error(`This cart already has ${MAX_CATEGORIES} categories.`);
+  return category;
+}
+export function addCategory(cart: Cart, name: string): Cart {
+  const categories = cart.categories || [];
+  const category = newCategoryName(categories, name);
+  return { ...cart, categories: [...categories, category] };
+}
+export function includeProductCategories(cart: Cart, product: Product): Cart {
+  const categories = [...(cart.categories || [])];
+  for (const category of product.categories || [])
+    if (!categories.includes(category)) categories.push(newCategoryName(categories, category));
+  return { ...cart, categories };
+}
+export function mergeProductCategories(product: Product, incoming: Product): Product {
+  const categories = [...new Set([...(product.categories || []), ...(incoming.categories || [])])];
+  if (categories.length > MAX_PRODUCT_CATEGORIES)
+    throw new Error(`A product can have up to ${MAX_PRODUCT_CATEGORIES} categories.`);
+  return categories.length ? { ...product, categories } : product;
+}
+export function removeCategory(cart: Cart, name: string): Cart {
+  return {
+    ...cart,
+    categories: (cart.categories || []).filter((category) => category !== name),
+    products: cart.products.map((product) => {
+      const { categories: previous, ...rest } = product;
+      const categories = (previous || []).filter((category) => category !== name);
+      return categories.length ? { ...rest, categories } : rest;
+    }),
+  };
+}
+export function matchesCategoryFilter(
+  product: Product,
+  selected: string[],
+  mode: "show" | "hide",
+) {
+  if (!selected.length) return true;
+  const categories = product.categories || [];
+  const matches = selected.some((category) =>
+    category === UNCATEGORIZED ? !categories.length : categories.includes(category),
+  );
+  return mode === "show" ? matches : !matches;
+}
 // getRandomValues also works when the tool is opened over HTTP on a LAN.
 export function newId() {
   return Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
@@ -77,6 +132,7 @@ export function moveProductToCart(
     throw new Error("This product or cart is no longer available.");
   if (target.products.length >= 100)
     throw new Error("The destination cart already has 100 products.");
+  const targetWithCategories = includeProductCategories(target, product);
   let id = product.id;
   while (target.products.some((item) => item.id === id)) id = newId();
   return {
@@ -88,7 +144,7 @@ export function moveProductToCart(
             products: cart.products.filter((item) => item.id !== productId),
           }
         : cart.id === targetId
-          ? { ...cart, products: [{ ...product, id }, ...cart.products] }
+          ? { ...targetWithCategories, products: [{ ...product, id }, ...cart.products] }
           : cart,
     ),
   };
@@ -127,7 +183,7 @@ export function shopFor(value: string) {
 }
 export function emptyStore(): Store {
   return {
-    carts: [{ id: "mein-warenkorb", name: "My cart", products: [] }],
+    carts: [{ id: "mein-warenkorb", name: "My cart", products: [], categories: [] }],
     active: "mein-warenkorb",
   };
 }
@@ -136,6 +192,7 @@ export function normalizeStore(s: Store): Store {
     active: s.active,
     carts: s.carts.map((c) => ({
       id: c.id,
+      categories: c.categories || [],
       name:
         c.id === "mein-warenkorb" && c.name === "Mein Warenkorb"
           ? "My cart"
@@ -150,6 +207,7 @@ export function normalizeStore(s: Store): Store {
         shop: p.shop === "Eigener Link" ? "Custom link" : p.shop,
         ...(p.notes === undefined ? {} : { notes: p.notes }),
         ...(p.status === undefined ? {} : { status: p.status }),
+        ...(p.categories?.length ? { categories: p.categories } : {}),
       })),
     })),
   };
@@ -174,6 +232,17 @@ export function validStore(value: unknown): value is Store {
           c.name.length <= 60 &&
           Array.isArray(c.products) &&
           c.products.length <= 100 &&
+          (c.categories === undefined ||
+            (Array.isArray(c.categories) &&
+              c.categories.length <= MAX_CATEGORIES &&
+              new Set(c.categories.map((category) => category.toLowerCase())).size === c.categories.length &&
+              c.categories.every((category) =>
+                typeof category === "string" &&
+                category.length > 0 &&
+                category.length <= CATEGORY_NAME_LIMIT &&
+                category === category.trim() &&
+                !/[\u0000-\u001f\u007f]/.test(category),
+              ))) &&
           new Set(c.products.map((p) => p.id)).size === c.products.length &&
           c.products.every(
             (p) =>
@@ -199,7 +268,12 @@ export function validStore(value: unknown): value is Store {
               p.quantity >= 1 &&
               p.quantity <= 999 &&
               (p.notes === undefined || (typeof p.notes === "string" && p.notes.length <= 500)) &&
-              (p.status === undefined || productStatuses.includes(p.status)),
+              (p.status === undefined || productStatuses.includes(p.status)) &&
+              (p.categories === undefined ||
+                (Array.isArray(p.categories) &&
+                  p.categories.length <= MAX_PRODUCT_CATEGORIES &&
+                  new Set(p.categories).size === p.categories.length &&
+                  p.categories.every((category) => (c.categories || []).includes(category))))
           ),
       )
     );
