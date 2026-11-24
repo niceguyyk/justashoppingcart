@@ -1054,7 +1054,10 @@ export default function Home() {
               {selectionActive && (
                 <Card className="mb-4 gap-0 py-0">
                   <CardContent className="flex flex-wrap items-center gap-2 px-3 py-2">
-                    <strong className="mr-auto text-sm">{selectedProductIds.length} selected</strong>
+                    <div className="mr-auto">
+                      <strong className="text-sm">{selectedProductIds.length} selected</strong>
+                      <p className="text-xs text-muted-foreground">Click a product card to select it.</p>
+                    </div>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -1132,7 +1135,16 @@ export default function Home() {
                   className={cn("product-grid", view === "list" && "list-view")}
                 >
                   {visible.map((p) => (
-                    <Card key={p.id} className={cn("product-card", selectedProductIds.includes(p.id) && "ring-2 ring-primary")}>
+                    <Card key={p.id} className={cn("product-card", selectionActive && "relative transition-shadow hover:ring-2 hover:ring-primary/60", selectedProductIds.includes(p.id) && "ring-2 ring-primary")}>
+                      {selectionActive && (
+                        <button
+                          type="button"
+                          className="absolute inset-0 z-10 cursor-pointer rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          aria-label={`${selectedProductIds.includes(p.id) ? "Deselect" : "Select"} ${p.name}`}
+                          aria-pressed={selectedProductIds.includes(p.id)}
+                          onClick={() => toggleProductSelection(p.id)}
+                        />
+                      )}
                       <div className="product-image">
                         <ProductImage
                           key={p.image}
@@ -1143,7 +1155,7 @@ export default function Home() {
                           <ShopMark shop={p.shop} />
                           {p.shop}
                         </Badge>
-                        <Button
+                        {!selectionActive && <Button
                           className="product-edit"
                           size="icon-sm"
                           variant="secondary"
@@ -1151,11 +1163,11 @@ export default function Home() {
                           onClick={() => openEditor(p)}
                         >
                           <Pencil />
-                        </Button>
+                        </Button>}
                       </div>
                       <CardHeader>
                         {selectionActive && (
-                          <Field orientation="horizontal" className="w-fit gap-2">
+                          <Field orientation="horizontal" className="relative z-20 w-fit gap-2">
                             <Checkbox
                               id={`select-product-${p.id}`}
                               aria-label={`Select ${p.name}`}
@@ -1166,7 +1178,7 @@ export default function Home() {
                           </Field>
                         )}
                         <CardTitle>
-                          <a
+                          {selectionActive ? <span className="product-title">{p.name}</span> : <a
                             href={p.url}
                             target="_blank"
                             rel="noopener noreferrer"
@@ -1174,7 +1186,7 @@ export default function Home() {
                           >
                             {p.name}
                             <ArrowUpRight className="size-3.5 shrink-0" />
-                          </a>
+                          </a>}
                         </CardTitle>
                         <CardDescription className="truncate">
                           {new URL(p.url).hostname.replace("www.", "")}
@@ -1187,7 +1199,7 @@ export default function Home() {
                         <strong>{money(p.price * p.quantity)}</strong>
                         {p.quantity > 1 && <span>{money(p.price)} / unit</span>}
                       </CardContent>
-                      <CardFooter className="justify-between gap-2">
+                      {!selectionActive && <CardFooter className="justify-between gap-2">
                         <div className="quantity-control">
                           <Button
                             size="icon-xs"
@@ -1274,7 +1286,7 @@ export default function Home() {
                             <Trash2 />
                           </Button>
                         </div>
-                      </CardFooter>
+                      </CardFooter>}
                     </Card>
                   ))}
                 </div>
